@@ -403,8 +403,17 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .lean-theme-dark {
-  background-color: #090f1d;
-  color: #f8fafc;
+  background-color: #0c0e14;
+  color: #F2F3EF;
+  --background: #0c0e14;
+  --foreground: #F2F3EF;
+  --surface: #13161F;
+  --card: #13161F;
+  --card-foreground: #F2F3EF;
+  --popover: #13161F;
+  --popover-foreground: #F2F3EF;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: #13161F;
 }
 
 .lean-theme-dark::before {
@@ -415,8 +424,8 @@ input[type="range"]::-moz-range-thumb {
   background-repeat: repeat;
   background-size: 620px auto;
   background-position: top center;
-  opacity: 0.34;
-  filter: invert(1) brightness(0.85) contrast(0.85) blur(4.5px);
+  opacity: 0.28;
+  filter: invert(1) brightness(0.75) contrast(0.85) blur(4.5px);
   pointer-events: none;
   z-index: 0;
 }
@@ -426,10 +435,10 @@ input[type="range"]::-moz-range-thumb {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(circle at 14% 12%, rgba(16, 185, 129, 0.22) 0%, transparent 48%),
-    radial-gradient(circle at 86% 18%, rgba(14, 165, 233, 0.18) 0%, transparent 46%),
-    radial-gradient(circle at 52% 88%, rgba(20, 184, 166, 0.14) 0%, transparent 50%),
-    rgba(9, 15, 29, 0.38);
+    radial-gradient(circle at 14% 12%, rgba(16, 185, 129, 0.16) 0%, transparent 48%),
+    radial-gradient(circle at 86% 18%, rgba(14, 165, 233, 0.14) 0%, transparent 46%),
+    radial-gradient(circle at 52% 88%, rgba(20, 184, 166, 0.10) 0%, transparent 50%),
+    rgba(12, 14, 20, 0.40);
   pointer-events: none;
   z-index: 0;
 }
@@ -808,13 +817,13 @@ input[type="range"]::-moz-range-thumb {
 
 .lean-theme-dark .liquid-glass-header,
 .liquid-glass-header.liquid-glass-dark {
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.62) 0%, rgba(15, 23, 42, 0.48) 100%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(210%) !important;
-  backdrop-filter: blur(24px) saturate(210%) !important;
-  border-bottom-color: rgba(255, 255, 255, 0.16) !important;
+  background: linear-gradient(180deg, rgba(12, 14, 20, 0.88) 0%, rgba(12, 14, 20, 0.74) 100%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
   box-shadow:
-    inset 0 -1px 0 0 rgba(255, 255, 255, 0.09),
-    0 10px 32px -6px rgba(0, 0, 0, 0.48) !important;
+    inset 0 -1px 0 0 rgba(255, 255, 255, 0.05),
+    0 10px 32px -6px rgba(0, 0, 0, 0.60) !important;
 }
 
 /* 2. Floating Mobile Pill Dock (Tier 1: Heavy Frosted iOS 26 Capsule for Scrolled Content) */
@@ -833,14 +842,14 @@ input[type="range"]::-moz-range-thumb {
 
 .lean-theme-dark .liquid-glass-dock,
 .liquid-glass-dock.liquid-glass-dark {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.82) 0%, rgba(15, 23, 42, 0.72) 55%, rgba(15, 23, 42, 0.82) 100%) !important;
-  -webkit-backdrop-filter: blur(36px) saturate(190%) !important;
-  backdrop-filter: blur(36px) saturate(190%) !important;
-  border-color: rgba(255, 255, 255, 0.24) !important;
+  background: linear-gradient(135deg, rgba(19, 22, 31, 0.92) 0%, rgba(12, 14, 20, 0.84) 55%, rgba(19, 22, 31, 0.92) 100%) !important;
+  -webkit-backdrop-filter: blur(36px) saturate(180%) !important;
+  backdrop-filter: blur(36px) saturate(180%) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.34),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.10),
-    0 16px 40px -6px rgba(0, 0, 0, 0.68) !important;
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 16px 40px -6px rgba(0, 0, 0, 0.72) !important;
 }
 
 /* 2b. Soft Edge Fade / Progressive Scrim Behind Floating Mobile Dock */
@@ -863,10 +872,10 @@ input[type="range"]::-moz-range-thumb {
 .liquid-glass-bottom-scrim.liquid-glass-dark {
   background: linear-gradient(
     to bottom,
-    rgba(15, 23, 42, 0) 0%,
-    rgba(15, 23, 42, 0.40) 36%,
-    rgba(15, 23, 42, 0.76) 68%,
-    rgba(9, 14, 28, 0.90) 100%
+    rgba(12, 14, 20, 0) 0%,
+    rgba(12, 14, 20, 0.40) 36%,
+    rgba(12, 14, 20, 0.76) 68%,
+    rgba(12, 14, 20, 0.95) 100%
   );
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
@@ -896,21 +905,22 @@ input[type="range"]::-moz-range-thumb {
 
 .lean-theme-dark .liquid-glass-card,
 .liquid-glass-card.liquid-glass-dark {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.56) 0%, rgba(15, 23, 42, 0.42) 55%, rgba(15, 23, 42, 0.54) 100%) !important;
-  -webkit-backdrop-filter: blur(22px) saturate(200%) !important;
-  backdrop-filter: blur(22px) saturate(200%) !important;
-  border-top-color: rgba(255, 255, 255, 0.24) !important;
-  border-right-color: rgba(255, 255, 255, 0.14) !important;
-  border-bottom-color: rgba(255, 255, 255, 0.11) !important;
+  background: linear-gradient(135deg, rgba(19, 22, 31, 0.92) 0%, rgba(19, 22, 31, 0.82) 55%, rgba(16, 19, 27, 0.88) 100%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(180%) !important;
+  backdrop-filter: blur(22px) saturate(180%) !important;
+  border-top-color: rgba(255, 255, 255, 0.14) !important;
+  border-right-color: rgba(255, 255, 255, 0.08) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+  color: #F2F3EF !important;
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.28),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 12px 34px -6px rgba(0, 0, 0, 0.46) !important;
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 12px 34px -6px rgba(0, 0, 0, 0.55) !important;
 }
 
 .lean-theme-dark .liquid-glass-card:not([class*="border-l-"]),
 .liquid-glass-card.liquid-glass-dark:not([class*="border-l-"]) {
-  border-left-color: rgba(255, 255, 255, 0.18) !important;
+  border-left-color: rgba(255, 255, 255, 0.10) !important;
 }
 
 /* Interactive Card Hover Specular Boost */
@@ -923,11 +933,11 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .lean-theme-dark .liquid-glass-card.liquid-glass-interactive:hover {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.66) 0%, rgba(15, 23, 42, 0.52) 55%, rgba(15, 23, 42, 0.64) 100%) !important;
+  background: linear-gradient(135deg, rgba(27, 31, 44, 0.96) 0%, rgba(19, 22, 31, 0.88) 55%, rgba(22, 26, 37, 0.92) 100%) !important;
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.34),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
-    0 18px 42px -6px rgba(0, 0, 0, 0.58) !important;
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 18px 42px -6px rgba(0, 0, 0, 0.65) !important;
 }
 
 /* Optional Tinted Frosted Variants (for KPI / Stat Highlights) */
@@ -935,28 +945,28 @@ input[type="range"]::-moz-range-thumb {
   background: linear-gradient(135deg, rgba(236, 253, 245, 0.68) 0%, rgba(209, 250, 229, 0.48) 100%) !important;
 }
 .lean-theme-dark .liquid-glass-tint-emerald {
-  background: linear-gradient(135deg, rgba(6, 78, 59, 0.46) 0%, rgba(15, 23, 42, 0.52) 100%) !important;
+  background: linear-gradient(135deg, rgba(6, 78, 59, 0.46) 0%, rgba(19, 22, 31, 0.82) 100%) !important;
 }
 
 .lean-theme-light .liquid-glass-tint-sky {
   background: linear-gradient(135deg, rgba(240, 249, 255, 0.68) 0%, rgba(224, 242, 254, 0.48) 100%) !important;
 }
 .lean-theme-dark .liquid-glass-tint-sky {
-  background: linear-gradient(135deg, rgba(12, 74, 110, 0.44) 0%, rgba(15, 23, 42, 0.52) 100%) !important;
+  background: linear-gradient(135deg, rgba(12, 74, 110, 0.44) 0%, rgba(19, 22, 31, 0.82) 100%) !important;
 }
 
 .lean-theme-light .liquid-glass-tint-amber {
   background: linear-gradient(135deg, rgba(255, 251, 235, 0.68) 0%, rgba(254, 243, 199, 0.48) 100%) !important;
 }
 .lean-theme-dark .liquid-glass-tint-amber {
-  background: linear-gradient(135deg, rgba(120, 53, 15, 0.42) 0%, rgba(15, 23, 42, 0.52) 100%) !important;
+  background: linear-gradient(135deg, rgba(120, 53, 15, 0.42) 0%, rgba(19, 22, 31, 0.82) 100%) !important;
 }
 
 .lean-theme-light .liquid-glass-tint-rose {
   background: linear-gradient(135deg, rgba(255, 241, 242, 0.68) 0%, rgba(255, 228, 230, 0.48) 100%) !important;
 }
 .lean-theme-dark .liquid-glass-tint-rose {
-  background: linear-gradient(135deg, rgba(136, 19, 55, 0.44) 0%, rgba(15, 23, 42, 0.52) 100%) !important;
+  background: linear-gradient(135deg, rgba(136, 19, 55, 0.44) 0%, rgba(19, 22, 31, 0.82) 100%) !important;
 }
 
 /* 4. Subtle Secondary Glass (Toolbars, Filter Bars, Switcher Capsules, Inner Boxes) */
@@ -973,13 +983,14 @@ input[type="range"]::-moz-range-thumb {
 
 .lean-theme-dark .liquid-glass-subtle,
 .liquid-glass-subtle.liquid-glass-dark {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.48) 0%, rgba(15, 23, 42, 0.38) 100%) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(190%) !important;
-  backdrop-filter: blur(18px) saturate(190%) !important;
-  border-color: rgba(255, 255, 255, 0.14) !important;
+  background: linear-gradient(135deg, rgba(19, 22, 31, 0.70) 0%, rgba(12, 14, 20, 0.60) 100%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(180%) !important;
+  backdrop-filter: blur(18px) saturate(180%) !important;
+  border-color: rgba(255, 255, 255, 0.10) !important;
+  color: #F2F3EF !important;
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.18),
-    0 6px 18px -4px rgba(0, 0, 0, 0.34) !important;
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.10),
+    0 6px 18px -4px rgba(0, 0, 0, 0.40) !important;
 }
 
 /* Frosted Glass Inputs & Selects inside Toolbars */
@@ -996,13 +1007,14 @@ input[type="range"]::-moz-range-thumb {
 
 .lean-theme-dark select.liquid-glass-control,
 .lean-theme-dark input.liquid-glass-control {
-  background-color: rgba(15, 23, 42, 0.50) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(190%) !important;
-  backdrop-filter: blur(18px) saturate(190%) !important;
-  border-color: rgba(255, 255, 255, 0.16) !important;
+  background-color: rgba(19, 22, 31, 0.75) !important;
+  color: #F2F3EF !important;
+  -webkit-backdrop-filter: blur(18px) saturate(180%) !important;
+  backdrop-filter: blur(18px) saturate(180%) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.20),
-    0 6px 16px -4px rgba(0, 0, 0, 0.36) !important;
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.14),
+    0 6px 16px -4px rgba(0, 0, 0, 0.40) !important;
 }
 
 /* 5. Active Pill Highlight inside Mobile Dock / Switchers */
@@ -1017,10 +1029,10 @@ input[type="range"]::-moz-range-thumb {
 
 .lean-theme-dark .liquid-glass-active-pill,
 .liquid-glass-active-pill.liquid-glass-dark {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.30) 0%, rgba(15, 23, 42, 0.36) 100%) !important;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.30) 0%, rgba(19, 22, 31, 0.45) 100%) !important;
   border: 1px solid rgba(52, 211, 153, 0.36) !important;
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.24),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.20),
     0 4px 16px -2px rgba(16, 185, 129, 0.28) !important;
 }
 
@@ -1039,14 +1051,15 @@ input[type="range"]::-moz-range-thumb {
 
 .lean-theme-dark .liquid-glass-modal,
 .liquid-glass-modal.liquid-glass-dark {
-  background: linear-gradient(145deg, rgba(15, 23, 42, 0.76) 0%, rgba(15, 23, 42, 0.66) 55%, rgba(30, 41, 59, 0.74) 100%) !important;
-  -webkit-backdrop-filter: blur(30px) saturate(205%) !important;
-  backdrop-filter: blur(30px) saturate(205%) !important;
-  border-color: rgba(255, 255, 255, 0.18) !important;
+  background: linear-gradient(145deg, rgba(19, 22, 31, 0.92) 0%, rgba(12, 14, 20, 0.88) 55%, rgba(19, 22, 31, 0.94) 100%) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(190%) !important;
+  backdrop-filter: blur(30px) saturate(190%) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  color: #F2F3EF !important;
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.26),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 24px 64px -12px rgba(0, 0, 0, 0.72) !important;
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.20),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 24px 64px -12px rgba(0, 0, 0, 0.78) !important;
 }
 
 /* 7. Resort Map Tooltip Pill (Tier 1: iOS 26 Frosted Map Popover) */
@@ -1064,14 +1077,15 @@ input[type="range"]::-moz-range-thumb {
 
 .lean-theme-dark .liquid-glass-pill,
 .liquid-glass-pill.liquid-glass-dark {
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.68) 0%, rgba(30, 41, 59, 0.56) 55%, rgba(15, 23, 42, 0.66) 100%) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(200%) !important;
-  backdrop-filter: blur(18px) saturate(200%) !important;
-  border-color: rgba(255, 255, 255, 0.22) !important;
+  background: linear-gradient(135deg, rgba(19, 22, 31, 0.85) 0%, rgba(12, 14, 20, 0.75) 55%, rgba(19, 22, 31, 0.85) 100%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(180%) !important;
+  backdrop-filter: blur(18px) saturate(180%) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  color: #F2F3EF !important;
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.28),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.10),
-    0 14px 32px -4px rgba(0, 0, 0, 0.52) !important;
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.20),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 14px 32px -4px rgba(0, 0, 0, 0.58) !important;
 }
 
 /* 8. Accessibility & Legacy Browser Fallbacks */
@@ -1097,7 +1111,8 @@ input[type="range"]::-moz-range-thumb {
   .lean-theme-dark .liquid-glass-pill,
   .liquid-glass-modal.liquid-glass-dark,
   .liquid-glass-pill.liquid-glass-dark {
-    background: rgba(15, 23, 42, 0.96) !important;
+    background: #13161F !important;
+    color: #F2F3EF !important;
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
   }
@@ -1131,7 +1146,8 @@ input[type="range"]::-moz-range-thumb {
   .lean-theme-dark .liquid-glass-pill,
   .liquid-glass-modal.liquid-glass-dark,
   .liquid-glass-pill.liquid-glass-dark {
-    background: rgba(15, 23, 42, 0.94) !important;
+    background: #13161F !important;
+    color: #F2F3EF !important;
   }
 }
 

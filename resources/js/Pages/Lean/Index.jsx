@@ -1652,7 +1652,7 @@ export default function LeanIndex({
     };
 
     return (
-        <div className={`lean-root ${isDark ? 'lean-theme-dark text-slate-100' : 'lean-theme-light text-slate-800'} flex flex-col font-sans pb-28 md:pb-12 transition-colors duration-300 w-full max-w-full overflow-x-clip min-h-screen`}>
+        <div className={`lean-root ${isDark ? 'lean-theme-dark text-[#F2F3EF]' : 'lean-theme-light text-slate-800'} flex flex-col font-sans pb-28 md:pb-12 transition-colors duration-300 w-full max-w-full overflow-x-clip min-h-screen`}>
             <Head title="Dashboard — Telunas Issue Tracker" />
             <LeanHeader
                 activePage="dashboard"
