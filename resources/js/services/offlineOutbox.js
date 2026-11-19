@@ -70,7 +70,14 @@ export async function addToOutbox(ticket) {
         const transaction = db.transaction([STORE_NAME], 'readwrite');
         const store = transaction.objectStore(STORE_NAME);
 
+        const clientUuid = ticket.client_uuid || (
+            typeof crypto !== 'undefined' && crypto.randomUUID
+                ? crypto.randomUUID()
+                : 'offline-' + Date.now() + '-' + Math.random().toString(36).substring(2, 11)
+        );
+
         const outboxRecord = {
+            client_uuid: clientUuid,
             title: ticket.title || '',
             description: ticket.description || '',
             location: ticket.location || '',
@@ -215,6 +222,9 @@ export async function updateOutboxTicket(id, updates) {
  */
 export async function syncSingleTicket(ticket) {
     const formData = new FormData();
+    if (ticket.client_uuid) {
+        formData.append('client_uuid', ticket.client_uuid);
+    }
     formData.append('title', ticket.title);
     formData.append('description', ticket.description || '');
     formData.append('location', ticket.location);
@@ -249,10 +259,11 @@ export async function syncSingleTicket(ticket) {
     const response = await axios.post('/lapangan/issues', formData, {
         headers: {
             'Content-Type': 'multipart/form-data',
+            'Accept': 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
             ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {})
         },
-        timeout: 25000, // 25s timeout for mobile upload
+        timeout: 45000, // 45s timeout for mobile upload
     });
 
     return response.data;
@@ -292,12 +303,23 @@ export async function syncAllOutboxTickets(onProgress = null) {
 
         for (let i = 0; i < tickets.length; i++) {
             const ticket = tickets[i];
+
+            // Mutex guard: Skip if another process/tab is already actively syncing this ticket (within last 60s)
+            if (ticket.status === 'syncing' && ticket.syncStartedAt && (Date.now() - ticket.syncStartedAt < 60000)) {
+                console.warn(`[OfflineOutbox] Skipping ticket #${ticket.id} because it is already actively syncing.`);
+                continue;
+            }
+
             if (onProgress) {
                 onProgress(i + 1, tickets.length, ticket);
             }
 
             try {
-                await updateOutboxTicket(ticket.id, { status: 'syncing', errorMessage: null });
+                await updateOutboxTicket(ticket.id, {
+                    status: 'syncing',
+                    syncStartedAt: Date.now(),
+                    errorMessage: null
+                });
                 await syncSingleTicket(ticket);
                 await removeOutboxTicket(ticket.id);
                 synced++;
@@ -310,6 +332,7 @@ export async function syncAllOutboxTickets(onProgress = null) {
 
                 await updateOutboxTicket(ticket.id, {
                     status: 'failed',
+                    syncStartedAt: null,
                     errorMessage: errMsg,
                     retryCount: (ticket.retryCount || 0) + 1
                 });
@@ -334,29 +357,37 @@ export async function syncAllOutboxTickets(onProgress = null) {
 export function registerOutboxAutoSync(onStatusChange = null) {
     if (typeof window === 'undefined') return () => {};
 
-    const handleNetworkChange = async () => {
-        const isOnline = navigator.onLine;
-        const count = await getOutboxCount();
+    let debounceTimer = null;
 
-        if (onStatusChange) {
-            onStatusChange({ isOnline, outboxCount: count });
+    const handleNetworkChange = () => {
+        if (debounceTimer) {
+            clearTimeout(debounceTimer);
         }
 
-        if (isOnline && count > 0) {
-            console.log('[OfflineOutbox] Network restored & outbox items detected. Triggering auto-sync...');
-            try {
-                const res = await syncAllOutboxTickets();
-                if (res.synced > 0) {
-                    console.log(`[OfflineOutbox] Auto-synced ${res.synced} tickets.`);
-                    // Dispatch a custom event so UI can display a success toast or refresh list
-                    window.dispatchEvent(new CustomEvent('telunas:outbox-synced', {
-                        detail: { syncedCount: res.synced }
-                    }));
-                }
-            } catch (syncErr) {
-                console.error('[OfflineOutbox] Error during auto-sync:', syncErr);
+        debounceTimer = setTimeout(async () => {
+            const isOnline = navigator.onLine;
+            const count = await getOutboxCount();
+
+            if (onStatusChange) {
+                onStatusChange({ isOnline, outboxCount: count });
             }
-        }
+
+            if (isOnline && count > 0) {
+                console.log('[OfflineOutbox] Network restored & outbox items detected. Triggering auto-sync...');
+                try {
+                    const res = await syncAllOutboxTickets();
+                    if (res.synced > 0) {
+                        console.log(`[OfflineOutbox] Auto-synced ${res.synced} tickets.`);
+                        // Dispatch a custom event so UI can display a success toast or refresh list
+                        window.dispatchEvent(new CustomEvent('telunas:outbox-synced', {
+                            detail: { syncedCount: res.synced }
+                        }));
+                    }
+                } catch (syncErr) {
+                    console.error('[OfflineOutbox] Error during auto-sync:', syncErr);
+                }
+            }
+        }, 300);
     };
 
     window.addEventListener('online', handleNetworkChange);
@@ -366,6 +397,9 @@ export function registerOutboxAutoSync(onStatusChange = null) {
     handleNetworkChange();
 
     return () => {
+        if (debounceTimer) {
+            clearTimeout(debounceTimer);
+        }
         window.removeEventListener('online', handleNetworkChange);
         window.removeEventListener('offline', handleNetworkChange);
     };

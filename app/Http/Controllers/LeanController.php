@@ -413,6 +413,7 @@ class LeanController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
+            'client_uuid'        => 'nullable|string|max:64',
             'location'           => 'required|string|max:255',
             'title'              => 'required|string|max:255',
             'description'        => 'nullable|string|max:5000',
@@ -421,10 +422,48 @@ class LeanController extends Controller
             'reporter_name'      => 'required|string|max:100',
             'reporter_dept'      => 'nullable|string|max:100',
             'reporter_phone'     => 'nullable|string|max:30',
-            'image'                   => 'nullable|image|max:10240',
-            'reported_at'             => 'nullable|date',
-            'start_in_progress'       => 'nullable',
+            'image'              => 'nullable|image|max:10240',
+            'reported_at'        => 'nullable|date',
+            'start_in_progress'  => 'nullable',
         ]);
+
+        $clientUuid = $request->input('client_uuid');
+        if (!empty($clientUuid)) {
+            $existing = LeanIssue::where('client_uuid', $clientUuid)->first();
+            if ($existing) {
+                Log::info("Idempotent store: LeanIssue #{$existing->id} already exists for client_uuid {$clientUuid}");
+                if (!$request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
+                    return response()->json([
+                        'success'      => true,
+                        'message'      => __('telunas.lean_store_success'),
+                        'issue'        => $existing,
+                        'deduplicated' => true,
+                    ]);
+                }
+                return redirect()->back()->with('success', __('telunas.lean_store_success'));
+            }
+        }
+
+        // Failsafe deduplication: if exact same title, location, reporter_name was submitted within 3 minutes
+        $recentDuplicate = LeanIssue::where('title', $validated['title'])
+            ->where('location', $validated['location'])
+            ->where('reporter_name', $validated['reporter_name'])
+            ->where('created_at', '>=', Carbon::now()->subMinutes(3))
+            ->latest('id')
+            ->first();
+
+        if ($recentDuplicate) {
+            Log::info("Failsafe deduplication: LeanIssue #{$recentDuplicate->id} matched within 3-minute window.");
+            if (!$request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
+                return response()->json([
+                    'success'      => true,
+                    'message'      => __('telunas.lean_store_success'),
+                    'issue'        => $recentDuplicate,
+                    'deduplicated' => true,
+                ]);
+            }
+            return redirect()->back()->with('success', __('telunas.lean_store_success'));
+        }
 
         $imageUrl = null;
         if ($request->hasFile('image')) {
@@ -490,6 +529,7 @@ class LeanController extends Controller
         }
 
         $issue = new LeanIssue([
+            'client_uuid'             => !empty($clientUuid) ? $clientUuid : null,
             'location'                => $validated['location'],
             'title'                   => $validated['title'],
             'description'             => $validated['description'] ?? null,
@@ -528,17 +568,22 @@ class LeanController extends Controller
 
         $issue->save();
 
-        // Dispatch automated WhatsApp notifications (reporter DM + target groups)
-        $this->notifyReporterCreated($issue, $receiverName, $receiverDept, $workerNames);
-        $this->notifyGroupsCreated($issue, $receiverName, $receiverDept, $workerNames);
+        // Dispatch automated WhatsApp notifications and Google Sheets sync in background after HTTP response is returned
+        dispatch(function () use ($issue, $receiverName, $receiverDept, $workerNames) {
+            try {
+                $this->notifyReporterCreated($issue, $receiverName, $receiverDept, $workerNames);
+                $this->notifyGroupsCreated($issue, $receiverName, $receiverDept, $workerNames);
+            } catch (\Throwable $e) {
+                Log::error('Background notification error on store: ' . $e->getMessage());
+            }
 
-        // Failsafe Google Sheets sync
-        try {
-            app(GoogleSheetsSyncService::class)->syncIssue($issue);
-            app(\App\Services\LeanSheetDirectService::class)->syncSingleIssue($issue);
-        } catch (\Throwable $e) {
-            Log::error('Sheets sync error on store: ' . $e->getMessage());
-        }
+            try {
+                app(GoogleSheetsSyncService::class)->syncIssue($issue);
+                app(\App\Services\LeanSheetDirectService::class)->syncSingleIssue($issue);
+            } catch (\Throwable $e) {
+                Log::error('Sheets sync error on store: ' . $e->getMessage());
+            }
+        })->afterResponse();
 
         if (!$request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
             return response()->json([
@@ -1271,6 +1316,7 @@ class LeanController extends Controller
     public function apiStore(Request $request)
     {
         $validated = $request->validate([
+            'client_uuid'             => 'nullable|string|max:64',
             'title'                   => 'required|string|max:255',
             'description'             => 'nullable|string|max:5000',
             'location'                => 'required|string|max:255',
@@ -1281,6 +1327,32 @@ class LeanController extends Controller
             'source'                  => 'nullable|string|max:50',
             'image'                   => 'nullable|image|max:10240',
         ]);
+
+        $clientUuid = $request->input('client_uuid');
+        if (!empty($clientUuid)) {
+            $existing = LeanIssue::where('client_uuid', $clientUuid)->first();
+            if ($existing) {
+                Log::info("Idempotent apiStore: LeanIssue #{$existing->id} already exists for client_uuid {$clientUuid}");
+                $code = self::formatIssueCode($existing);
+                return response()->json([
+                    'success'      => true,
+                    'deduplicated' => true,
+                    'message'      => __('telunas.lean_api_store_success'),
+                    'data'         => [
+                        'id'               => $code,
+                        'raw_id'           => $existing->id,
+                        'title'            => $existing->title,
+                        'location'         => $existing->location,
+                        'department'       => $existing->target_departments[0] ?? '',
+                        'reporter'         => $existing->reporter_name,
+                        'reporter_phone'   => $existing->reporter_phone,
+                        'status'           => $existing->status,
+                        'last_progress_at' => $existing->last_progress_at ? $existing->last_progress_at->toIso8601String() : null,
+                        'imageUrl'         => $existing->image_url,
+                    ],
+                ]);
+            }
+        }
 
         $imageUrl = null;
         if ($request->hasFile('image')) {
@@ -1299,6 +1371,7 @@ class LeanController extends Controller
         );
 
         $issue = LeanIssue::create([
+            'client_uuid'             => !empty($clientUuid) ? $clientUuid : null,
             'location'                => $validated['location'],
             'title'                   => $validated['title'],
             'description'             => $validated['description'] ?? null,
@@ -1319,18 +1392,25 @@ class LeanController extends Controller
             ],
         ]);
 
-        // Skip DM confirmation when submitted directly from WhatsApp Bot V2 (bot replies immediately in DM chat)
-        if (($validated['source'] ?? '') !== 'whatsapp_bot') {
-            $this->notifyReporterCreated($issue, 'WhatsApp Bot', $targetDept);
-        }
+        $source = $validated['source'] ?? '';
+        dispatch(function () use ($issue, $targetDept, $source) {
+            // Skip DM confirmation when submitted directly from WhatsApp Bot V2 (bot replies immediately in DM chat)
+            if ($source !== 'whatsapp_bot') {
+                try {
+                    $this->notifyReporterCreated($issue, 'WhatsApp Bot', $targetDept);
+                } catch (\Throwable $e) {
+                    Log::error('Background notifyReporterCreated error on apiStore: ' . $e->getMessage());
+                }
+            }
 
-        // Failsafe Google Sheets sync for WhatsApp Bot V2
-        try {
-            app(GoogleSheetsSyncService::class)->syncIssue($issue);
-            app(\App\Services\LeanSheetDirectService::class)->syncSingleIssue($issue);
-        } catch (\Throwable $e) {
-            Log::error('Sheets sync error on apiStore: ' . $e->getMessage());
-        }
+            // Failsafe Google Sheets sync for WhatsApp Bot V2
+            try {
+                app(GoogleSheetsSyncService::class)->syncIssue($issue);
+                app(\App\Services\LeanSheetDirectService::class)->syncSingleIssue($issue);
+            } catch (\Throwable $e) {
+                Log::error('Sheets sync error on apiStore: ' . $e->getMessage());
+            }
+        })->afterResponse();
 
         $code = self::formatIssueCode($issue);
 

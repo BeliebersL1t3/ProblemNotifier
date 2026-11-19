@@ -827,7 +827,7 @@ export default function LeanIndex({
             window.removeEventListener('telunas:outbox-updated', handleOutboxUpdate);
             window.removeEventListener('telunas:outbox-synced', handleOutboxSynced);
         };
-    }, [showOutboxModal]);
+    }, []);
 
     // Silent self-healing reconciliation when SQL has unsynced changes for Google Sheets
     const autoSyncAttemptedRef = useRef(false);

@@ -13,6 +13,7 @@ class LeanIssue extends Model
     protected $table = 'lean_issues';
 
     protected $fillable = [
+        'client_uuid',
         'location',
         'title',
         'description',
