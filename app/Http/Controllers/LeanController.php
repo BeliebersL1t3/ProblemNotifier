@@ -1234,7 +1234,7 @@ class LeanController extends Controller
         }
 
         $validated = $request->validate([
-            'year' => 'required|integer|min:2020|max:2035',
+            'year' => 'required|integer|min:2020|max:2100',
             'url'  => 'required|string',
         ]);
 
