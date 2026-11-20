@@ -16,6 +16,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { UserModal } from '@/Components/Users/UserModal';
 import { AuditTrailTab } from '@/Components/Users/AuditTrailTab';
 import { BatchPermissionsModal } from '@/Components/Users/BatchPermissionsModal';
+import { EmployeeSheetSyncModal } from '@/Components/Users/EmployeeSheetSyncModal';
 import { DEPARTMENTS, getDepartmentTheme } from '@/constants/departments';
 import SubdivisionTag from '@/Components/CampusFix/SubdivisionTag';
 
@@ -47,6 +48,7 @@ function UsersInner({ initialUsers, initialStats }) {
     // Modals
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState(null);
+    const [isEmployeeSheetModalOpen, setIsEmployeeSheetModalOpen] = useState(false);
     const [activeMainTab, setActiveMainTab] = useState('users'); // 'users' | 'audit'
 
     // Toast notification
@@ -343,11 +345,24 @@ function UsersInner({ initialUsers, initialStats }) {
                     </div>
 
                     {/* Top Action Buttons */}
-                    <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                    <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+                        <button
+                            type="button"
+                            onClick={() => setIsEmployeeSheetModalOpen(true)}
+                            className={`flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                                isDark
+                                    ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/50'
+                                    : 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100'
+                            }`}
+                            title={lang === 'id' ? 'Sinkronkan data staf dari Google Spreadsheet Master' : 'Sync staff from Google Spreadsheet'}
+                        >
+                            <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
+                            <span>{lang === 'id' ? 'Sync Spreadsheet Karyawan' : 'Sync Employee Sheet'}</span>
+                        </button>
                         <button
                             type="button"
                             onClick={handleCreateUser}
-                            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white keep-white transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
+                            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white keep-white transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
                         >
                             <Plus className="h-4 w-4" />
                             <span>{lang === 'id' ? 'Tambah Akun' : 'New User'}</span>
@@ -1250,6 +1265,16 @@ function UsersInner({ initialUsers, initialStats }) {
                 selectedUsers={users.filter(u => selectedUserIds.includes(u.id) && u.role !== 'admin')}
                 onBatchSuccess={handleBatchSuccess}
                 showToast={showToast}
+            />
+
+            {/* Employee Spreadsheet Sync Modal (Option B) */}
+            <EmployeeSheetSyncModal
+                isOpen={isEmployeeSheetModalOpen}
+                onClose={() => setIsEmployeeSheetModalOpen(false)}
+                onSyncSuccess={() => {
+                    showToast(lang === 'id' ? 'Sinkronisasi spreadsheet karyawan selesai!' : 'Employee sheet sync complete!');
+                    fetchUsers();
+                }}
             />
 
             {/* Batch Delete Confirmation Modal */}

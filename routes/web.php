@@ -37,6 +37,10 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile/avatar', [ProfileController::class, 'destroyAvatar'])->name('profile.avatar.destroy');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
+    Route::get('/users/employee-sheet-config', [UserController::class, 'getEmployeeSheetConfig']);
+    Route::post('/users/employee-sheet-config', [UserController::class, 'updateEmployeeSheetConfig']);
+    Route::post('/users/sync-sheet', [UserController::class, 'syncEmployeeSheet']);
+    Route::post('/users/export-sheet', [UserController::class, 'exportEmployeeSheet']);
 
     // Approval Tickets - Disabled and Redirected to Dashboard
     Route::redirect('/tickets', '/')->name('tickets.index');
@@ -97,6 +101,12 @@ Route::prefix('api')->group(function () {
         Route::post('/users/{id}/toggle-hod', [UserController::class, 'toggleHod']);
         Route::get('/user-audit-logs', [UserController::class, 'auditLogs']);
         Route::post('/user-audit-logs/sync-sheet', [UserController::class, 'syncAuditSheet']);
+
+        // Employee Google Spreadsheet Master Sync (Option B)
+        Route::get('/users/employee-sheet-config', [UserController::class, 'getEmployeeSheetConfig']);
+        Route::post('/users/employee-sheet-config', [UserController::class, 'updateEmployeeSheetConfig']);
+        Route::post('/users/sync-sheet', [UserController::class, 'syncEmployeeSheet']);
+        Route::post('/users/export-sheet', [UserController::class, 'exportEmployeeSheet']);
 
         // Web Push Subscriptions & Mobile Pop-up Notifications
         Route::get('/push-subscriptions/vapid-public-key', [PushSubscriptionController::class, 'getVapidPublicKey']);

@@ -40,6 +40,7 @@ return [
         'lean_spreadsheet_id'    => env('GOOGLE_LEAN_SPREADSHEET_ID', '1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg'),
         'tickets_spreadsheet_id' => env('GOOGLE_TICKETS_SPREADSHEET_ID'),
         'audit_spreadsheet_id'   => env('GOOGLE_AUDIT_SPREADSHEET_ID', '11FJllelJdd37tR9dUnCawgU1iycm6bQOLMgHM2t-z84'),
+        'employee_spreadsheet_id'=> env('GOOGLE_EMPLOYEE_SPREADSHEET_ID'),
     ],
 
     'bot' => [

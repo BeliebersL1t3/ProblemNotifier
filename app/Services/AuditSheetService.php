@@ -74,6 +74,7 @@ class AuditSheetService
             'BATCH_USERS_RESTORED'          => 'Pemulihan Massal',
             'USER_PROMOTED_HOD'             => 'Diangkat Menjadi HOD',
             'USER_DEMOTED_HOD'              => 'Status HOD Dicabut',
+            'BATCH_USERS_SYNCED_FROM_SHEET' => 'Sync Karyawan dari Spreadsheet',
             default                         => (string) $action,
         };
     }
@@ -86,6 +87,13 @@ class AuditSheetService
 
         // Case 1: Batch Action
         if (!empty($changes['batch'])) {
+            if (isset($changes['created_count']) || isset($changes['hashed_passwords'])) {
+                $c = $changes['created_count'] ?? 0;
+                $u = $changes['updated_count'] ?? 0;
+                $h = $changes['hashed_passwords'] ?? 0;
+                $err = $changes['errors_count'] ?? 0;
+                return "Sync Spreadsheet Karyawan: {$c} baru, {$u} diperbarui, {$h} password di-hash" . ($err > 0 ? ", {$err} gagal." : ".");
+            }
             $count = $changes['account_count'] ?? 0;
             $action = $changes['action_applied'] ?? 'Aksi Massal';
             $names = [];

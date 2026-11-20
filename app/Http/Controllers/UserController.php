@@ -1147,4 +1147,128 @@ class UserController extends Controller
             }
         }
     }
+
+    /**
+     * Get employee spreadsheet configuration (URL, ID).
+     */
+    public function getEmployeeSheetConfig(Request $request)
+    {
+        $this->ensureAdmin();
+        $service = app(\App\Services\EmployeeSheetService::class);
+
+        return response()->json([
+            'success'         => true,
+            'spreadsheet_id'  => $service->getSpreadsheetId(),
+            'spreadsheet_url' => $service->getSpreadsheetUrl(),
+        ]);
+    }
+
+    /**
+     * Update employee spreadsheet configuration (connect new URL or ID).
+     */
+    public function updateEmployeeSheetConfig(Request $request)
+    {
+        $this->ensureAdmin();
+
+        $request->validate([
+            'url' => 'required|string',
+        ]);
+
+        $service = app(\App\Services\EmployeeSheetService::class);
+        $newId = $service->setSpreadsheetId($request->input('url'));
+
+        if (!$newId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'URL atau ID Google Spreadsheet tidak valid.',
+            ], 422);
+        }
+
+        return response()->json([
+            'success'         => true,
+            'spreadsheet_id'  => $newId,
+            'spreadsheet_url' => $service->getSpreadsheetUrl(),
+            'message'         => 'Spreadsheet Karyawan berhasil dihubungkan.',
+        ]);
+    }
+
+    /**
+     * Sync staff members from Google Spreadsheet with auto-hashing of plain-text passwords (Option B).
+     */
+    public function syncEmployeeSheet(Request $request)
+    {
+        $this->ensureAdmin();
+
+        try {
+            $service = app(\App\Services\EmployeeSheetService::class);
+
+            // If user supplied a spreadsheet URL directly in the request, connect it first
+            if ($request->filled('spreadsheet_url')) {
+                $service->setSpreadsheetId($request->input('spreadsheet_url'));
+            }
+
+            if (!$service->getSpreadsheetId()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Belum ada Google Spreadsheet yang dihubungkan. Harap masukkan URL atau ID spreadsheet terlebih dahulu.',
+                ], 422);
+            }
+
+            $result = $service->syncEmployeesFromSheet(auth()->user());
+
+            return response()->json([
+                'success'          => $result['success'],
+                'created'          => $result['created'],
+                'updated'          => $result['updated'],
+                'hashed_passwords' => $result['hashed_passwords'],
+                'skipped'          => $result['skipped'],
+                'errors'           => $result['errors'],
+                'spreadsheet_url'  => $result['spreadsheet_url'],
+                'message'          => $result['message'],
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('UserController@syncEmployeeSheet failed: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menyinkronkan data karyawan: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Export all existing employees/users to Google Spreadsheet.
+     */
+    public function exportEmployeeSheet(Request $request)
+    {
+        $this->ensureAdmin();
+
+        try {
+            $service = app(\App\Services\EmployeeSheetService::class);
+            if ($request->filled('spreadsheet_url')) {
+                $service->setSpreadsheetId($request->input('spreadsheet_url'));
+            }
+
+            if (!$service->getSpreadsheetId()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Belum ada Google Spreadsheet yang dihubungkan.',
+                ], 422);
+            }
+
+            $result = $service->exportAllEmployeesToSheet();
+
+            return response()->json([
+                'success'         => true,
+                'count'           => $result['count'],
+                'spreadsheet_url' => $result['spreadsheet_url'],
+                'message'         => $result['message'],
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('UserController@exportEmployeeSheet failed: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal meletakkan data karyawan: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
 }
