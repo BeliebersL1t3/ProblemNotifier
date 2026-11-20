@@ -94,19 +94,22 @@ Route::prefix('api')->group(function () {
         Route::post('/users/batch-permissions', [UserController::class, 'batchUpdatePermissions']);
         Route::match(['post', 'delete'], '/users/batch-destroy', [UserController::class, 'batchDestroy']);
         Route::post('/users/batch-restore', [UserController::class, 'batchRestore']);
-        Route::match(['put', 'patch', 'post'], '/users/{id}', [UserController::class, 'update']);
-        Route::delete('/users/{id}', [UserController::class, 'destroy']);
-        Route::post('/users/{id}/restore', [UserController::class, 'restore']);
-        Route::post('/users/{id}/reset-password', [UserController::class, 'resetPassword']);
-        Route::post('/users/{id}/toggle-hod', [UserController::class, 'toggleHod']);
-        Route::get('/user-audit-logs', [UserController::class, 'auditLogs']);
-        Route::post('/user-audit-logs/sync-sheet', [UserController::class, 'syncAuditSheet']);
 
-        // Employee Google Spreadsheet Master Sync (Option B)
+        // Employee Google Spreadsheet Master Sync (Option B) - Static routes first!
         Route::get('/users/employee-sheet-config', [UserController::class, 'getEmployeeSheetConfig']);
         Route::post('/users/employee-sheet-config', [UserController::class, 'updateEmployeeSheetConfig']);
         Route::post('/users/sync-sheet', [UserController::class, 'syncEmployeeSheet']);
         Route::post('/users/export-sheet', [UserController::class, 'exportEmployeeSheet']);
+
+        Route::get('/user-audit-logs', [UserController::class, 'auditLogs']);
+        Route::post('/user-audit-logs/sync-sheet', [UserController::class, 'syncAuditSheet']);
+
+        // Wildcard numeric ID routes
+        Route::match(['put', 'patch', 'post'], '/users/{id}', [UserController::class, 'update'])->whereNumber('id');
+        Route::delete('/users/{id}', [UserController::class, 'destroy'])->whereNumber('id');
+        Route::post('/users/{id}/restore', [UserController::class, 'restore'])->whereNumber('id');
+        Route::post('/users/{id}/reset-password', [UserController::class, 'resetPassword'])->whereNumber('id');
+        Route::post('/users/{id}/toggle-hod', [UserController::class, 'toggleHod'])->whereNumber('id');
 
         // Web Push Subscriptions & Mobile Pop-up Notifications
         Route::get('/push-subscriptions/vapid-public-key', [PushSubscriptionController::class, 'getVapidPublicKey']);

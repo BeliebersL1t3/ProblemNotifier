@@ -605,6 +605,81 @@ class EmployeeSheetService
     }
 
     /**
+     * Sync a single user/employee to the Google Spreadsheet in real-time.
+     */
+    public function syncSingleEmployeeToSheet(User $user): bool
+    {
+        if (!$this->spreadsheetId) {
+            return false;
+        }
+
+        try {
+            $tabName = $this->ensureSheetAndHeaders();
+            $service = $this->getSheetsService();
+
+            $range = "{$tabName}!A2:I";
+            $response = $service->spreadsheets_values->get($this->spreadsheetId, $range);
+            $rows = $response->getValues() ?: [];
+
+            $targetRowIndex = null;
+            $userEmail = strtolower(trim((string) $user->email));
+            $userPhone = self::normalizePhoneNumber($user->whatsapp_number);
+            $userName = strtolower(trim((string) ($user->staff_name ?: $user->name)));
+
+            foreach ($rows as $index => $r) {
+                $rowName = strtolower(trim($r[0] ?? ''));
+                $rowPhone = self::normalizePhoneNumber($r[2] ?? '');
+                $rowEmail = strtolower(trim($r[3] ?? ''));
+
+                if (($userEmail !== '' && $userEmail === $rowEmail) ||
+                    ($userPhone !== null && $userPhone === $rowPhone) ||
+                    ($userName !== '' && $userName === $rowName)) {
+                    $targetRowIndex = $index + 2;
+                    break;
+                }
+            }
+
+            $nowStr = Carbon::now('Asia/Jakarta')->format('d/m/Y H:i');
+            $rowData = [
+                $user->staff_name ?: $user->name,
+                $user->department ?: 'Umum',
+                $user->whatsapp_number ?: '',
+                $user->email ?: '',
+                $user->password ?: '', // Bcrypt hash string ($2y$...)
+                $user->role ?: 'staff',
+                $user->subdivision ?: '',
+                ($user->trashed() || !$user->is_active) ? 'Nonaktif' : 'Aktif',
+                "Tersinkron ({$nowStr})",
+            ];
+
+            if ($targetRowIndex !== null) {
+                // Update existing row
+                $body = new ValueRange(['values' => [$rowData]]);
+                $service->spreadsheets_values->update(
+                    $this->spreadsheetId,
+                    "{$tabName}!A{$targetRowIndex}:I{$targetRowIndex}",
+                    $body,
+                    ['valueInputOption' => 'USER_ENTERED']
+                );
+            } else {
+                // Append as new row
+                $body = new ValueRange(['values' => [$rowData]]);
+                $service->spreadsheets_values->append(
+                    $this->spreadsheetId,
+                    "{$tabName}!A:I",
+                    $body,
+                    ['valueInputOption' => 'USER_ENTERED']
+                );
+            }
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning("EmployeeSheetService: Failed syncing user #{$user->id} to sheet: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Trigger real-time staff roster reload in WhatsApp Bot V2.
      */
     private function syncStaffWithBot(): void

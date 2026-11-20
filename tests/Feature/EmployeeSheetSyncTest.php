@@ -22,13 +22,32 @@ class EmployeeSheetSyncTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected ?string $originalConfigFileContent = null;
+    protected string $configFilePath;
+
     protected function setUp(): void
     {
         parent::setUp();
+        $this->configFilePath = storage_path('app/employee_spreadsheet_config.json');
+        if (File::exists($this->configFilePath)) {
+            $this->originalConfigFileContent = File::get($this->configFilePath);
+        }
+
         Http::fake([
             'http://127.0.0.1:3000/*' => Http::response(['success' => true], 200),
             '*' => Http::response(['success' => true], 200),
         ]);
+    }
+
+    protected function tearDown(): void
+    {
+        if ($this->originalConfigFileContent !== null) {
+            File::put($this->configFilePath, $this->originalConfigFileContent);
+        } elseif (File::exists($this->configFilePath)) {
+            File::delete($this->configFilePath);
+        }
+
+        parent::tearDown();
     }
 
     public function test_extract_spreadsheet_id(): void
@@ -208,5 +227,54 @@ class EmployeeSheetSyncTest extends TestCase
         $log = UserAuditLog::where('action', 'BATCH_USERS_SYNCED_FROM_SHEET')->latest()->first();
         $this->assertNotNull($log);
         $this->assertEquals($admin->id, $log->admin_id);
+    }
+
+    public function test_export_and_sync_sheet_routes_are_not_intercepted_by_wildcard_user_id(): void
+    {
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'department' => 'IT',
+            'staff_name' => 'Admin Routes Test',
+        ]);
+
+        $mockService = $this->createMock(EmployeeSheetService::class);
+        $mockService->method('getSpreadsheetId')->willReturn('1KM1AXSZS6-KXJdnKUfpfYaWypyKa8Homam4ce3t160M');
+        $mockService->method('exportAllEmployeesToSheet')->willReturn([
+            'success'         => true,
+            'message'         => '59 data karyawan berhasil diekspor.',
+            'count'           => 59,
+            'spreadsheet_url' => 'https://docs.google.com/spreadsheets/d/1KM1AXSZS6-KXJdnKUfpfYaWypyKa8Homam4ce3t160M/edit',
+        ]);
+        $mockService->method('syncEmployeesFromSheet')->willReturn([
+            'success'          => true,
+            'message'          => 'Sync berhasil.',
+            'created'          => 0,
+            'updated'          => 0,
+            'hashed_passwords' => 0,
+            'skipped'          => 0,
+            'errors'           => [],
+            'spreadsheet_url'  => 'https://docs.google.com/spreadsheets/d/1KM1AXSZS6-KXJdnKUfpfYaWypyKa8Homam4ce3t160M/edit',
+        ]);
+
+        $this->app->instance(EmployeeSheetService::class, $mockService);
+
+        // Test POST /api/users/export-sheet
+        $resExport = $this->actingAs($admin)->postJson('/api/users/export-sheet');
+        $resExport->assertStatus(200);
+        $resExport->assertJsonPath('success', true);
+        $resExport->assertJsonPath('count', 59);
+
+        // Test POST /users/export-sheet
+        $resExportWeb = $this->actingAs($admin)->postJson('/users/export-sheet');
+        $resExportWeb->assertStatus(200);
+
+        // Test POST /api/users/sync-sheet
+        $resSync = $this->actingAs($admin)->postJson('/api/users/sync-sheet');
+        $resSync->assertStatus(200);
+        $resSync->assertJsonPath('success', true);
+
+        // Test POST /users/sync-sheet
+        $resSyncWeb = $this->actingAs($admin)->postJson('/users/sync-sheet');
+        $resSyncWeb->assertStatus(200);
     }
 }
