@@ -277,4 +277,56 @@ class EmployeeSheetSyncTest extends TestCase
         $resSyncWeb = $this->actingAs($admin)->postJson('/users/sync-sheet');
         $resSyncWeb->assertStatus(200);
     }
+
+    public function test_sync_single_employee_to_sheet(): void
+    {
+        $user = User::factory()->create([
+            'staff_name' => 'Charlie Delta',
+            'department' => 'Kitchen',
+            'whatsapp_number' => '628999888777',
+            'email' => 'charlie@telunasresorts.com',
+            'role' => 'staff',
+        ]);
+
+        $mockSheets = $this->createMock(Sheets::class);
+        $mockSpreadsheets = $this->createMock(Spreadsheets::class);
+        $mockValues = $this->createMock(SpreadsheetsValues::class);
+
+        $mockSheets->spreadsheets = $mockSpreadsheets;
+        $mockSheets->spreadsheets_values = $mockValues;
+
+        $meta = new Spreadsheet();
+        $sheetObj = new Sheet();
+        $props = new SheetProperties();
+        $props->setTitle('Data Karyawan');
+        $sheetObj->setProperties($props);
+        $meta->setSheets([$sheetObj]);
+        $mockSpreadsheets->method('get')->willReturn($meta);
+
+        // Mock existing rows: row 2 is Charlie Delta
+        $valRange = new ValueRange();
+        $valRange->setValues([
+            ['Charlie Delta', 'Kitchen', '628999888777', 'charlie@telunasresorts.com', 'oldhash', 'staff', '', 'Aktif', 'Tersinkron'],
+        ]);
+        $mockValues->method('get')->willReturn($valRange);
+
+        $updatedRange = null;
+        $mockValues->method('update')->willReturnCallback(function ($sheetId, $range, $body) use (&$updatedRange) {
+            $updatedRange = $range;
+            return true;
+        });
+
+        $service = new EmployeeSheetService();
+        $service->setSpreadsheetId('1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg');
+
+        $reflection = new \ReflectionClass($service);
+        $prop = $reflection->getProperty('sheets');
+        $prop->setAccessible(true);
+        $prop->setValue($service, $mockSheets);
+
+        $success = $service->syncSingleEmployeeToSheet($user);
+
+        $this->assertTrue($success);
+        $this->assertEquals('Data Karyawan!A2:I2', $updatedRange);
+    }
 }

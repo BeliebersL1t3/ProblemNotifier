@@ -277,6 +277,13 @@ class UserController extends Controller
             $this->syncStaffWithBot();
         }
 
+        // Real-time sync new employee to Google Spreadsheet master
+        try {
+            app(\App\Services\EmployeeSheetService::class)->syncSingleEmployeeToSheet($user);
+        } catch (\Throwable $sheetEx) {
+            \Illuminate\Support\Facades\Log::warning("UserController@store: Auto-sync user #{$user->id} to Google Sheet failed: " . $sheetEx->getMessage());
+        }
+
         // Audit log
         UserAuditLog::record(
             auth()->user(),
@@ -467,6 +474,13 @@ class UserController extends Controller
 
         // Notify WhatsApp bot to sync staff memory in real-time
         $this->syncStaffWithBot();
+
+        // Real-time sync employee updates (e.g. password, role, dept) to Google Spreadsheet master
+        try {
+            app(\App\Services\EmployeeSheetService::class)->syncSingleEmployeeToSheet($user);
+        } catch (\Throwable $sheetEx) {
+            \Illuminate\Support\Facades\Log::warning("UserController@update: Auto-sync user #{$user->id} to Google Sheet failed: " . $sheetEx->getMessage());
+        }
 
         $after = [
             'name'            => $user->name,
@@ -806,6 +820,13 @@ class UserController extends Controller
 
         $this->syncStaffWithBot();
 
+        // Real-time sync employee deactivation to Google Spreadsheet master
+        try {
+            app(\App\Services\EmployeeSheetService::class)->syncSingleEmployeeToSheet($user);
+        } catch (\Throwable $sheetEx) {
+            \Illuminate\Support\Facades\Log::warning("UserController@destroy: Auto-sync user #{$user->id} to Google Sheet failed: " . $sheetEx->getMessage());
+        }
+
         UserAuditLog::record(
             auth()->user(),
             $user,
@@ -837,6 +858,13 @@ class UserController extends Controller
         $user->restore();
 
         $this->syncStaffWithBot();
+
+        // Real-time sync employee reactivation to Google Spreadsheet master
+        try {
+            app(\App\Services\EmployeeSheetService::class)->syncSingleEmployeeToSheet($user);
+        } catch (\Throwable $sheetEx) {
+            \Illuminate\Support\Facades\Log::warning("UserController@restore: Auto-sync user #{$user->id} to Google Sheet failed: " . $sheetEx->getMessage());
+        }
 
         UserAuditLog::record(
             auth()->user(),
@@ -878,6 +906,13 @@ class UserController extends Controller
         $user->password = Hash::make($newPassword);
         $user->raw_password = $newPassword;
         $user->save();
+
+        // Real-time sync reset password hash to Google Spreadsheet master
+        try {
+            app(\App\Services\EmployeeSheetService::class)->syncSingleEmployeeToSheet($user);
+        } catch (\Throwable $sheetEx) {
+            \Illuminate\Support\Facades\Log::warning("UserController@resetPassword: Auto-sync user #{$user->id} to Google Sheet failed: " . $sheetEx->getMessage());
+        }
 
         // Dispatch credentials via WhatsApp DM, or fallback to email
         $this->dispatchUserCredentials($user, $newPassword, false);

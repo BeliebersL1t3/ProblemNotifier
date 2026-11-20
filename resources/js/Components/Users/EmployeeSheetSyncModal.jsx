@@ -116,7 +116,7 @@ export function EmployeeSheetSyncModal({ isOpen, onClose, onSyncSuccess }) {
                 payload.spreadsheet_url = urlInput.trim();
             }
 
-            const res = await axios.post('/api/users/export-sheet', payload);
+            const res = await axios.post('/users/export-sheet', payload);
             if (res.data?.success) {
                 setResult({
                     message: res.data.message,
