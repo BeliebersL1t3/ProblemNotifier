@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Models\UserAuditLog;
 use App\Services\EmployeeSheetService;
+use Carbon\Carbon;
 use Google\Service\Sheets;
 use Google\Service\Sheets\Resource\Spreadsheets;
 use Google\Service\Sheets\Resource\SpreadsheetsValues;
@@ -41,11 +42,12 @@ class EmployeeSheetSyncTest extends TestCase
 
     protected function tearDown(): void
     {
-        if ($this->originalConfigFileContent !== null) {
-            File::put($this->configFilePath, $this->originalConfigFileContent);
-        } elseif (File::exists($this->configFilePath)) {
-            File::delete($this->configFilePath);
-        }
+        // Explicitly guarantee production config is always restored to 1KM1AXSZS6-KXJdnKUfpfYaWypyKa8Homam4ce3t160M
+        $prodConfig = [
+            'spreadsheet_id' => '1KM1AXSZS6-KXJdnKUfpfYaWypyKa8Homam4ce3t160M',
+            'updated_at'     => Carbon::now('Asia/Jakarta')->toIso8601String(),
+        ];
+        File::put($this->configFilePath, json_encode($prodConfig, JSON_PRETTY_PRINT));
 
         parent::tearDown();
     }
@@ -98,21 +100,21 @@ class EmployeeSheetSyncTest extends TestCase
         // Staff is forbidden
         $this->actingAs($staff)->get('/users/employee-sheet-config')->assertStatus(403);
         $this->actingAs($staff)->post('/users/employee-sheet-config', [
-            'url' => 'https://docs.google.com/spreadsheets/d/1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg/edit',
+            'url' => 'https://docs.google.com/spreadsheets/d/1TEST_MOCK_EMPLOYEE_SHEET_ID_ABCD1234567890/edit',
         ])->assertStatus(403);
 
         // Admin can update
         $res = $this->actingAs($admin)->post('/users/employee-sheet-config', [
-            'url' => 'https://docs.google.com/spreadsheets/d/1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg/edit',
+            'url' => 'https://docs.google.com/spreadsheets/d/1TEST_MOCK_EMPLOYEE_SHEET_ID_ABCD1234567890/edit',
         ]);
         $res->assertStatus(200);
         $res->assertJsonPath('success', true);
-        $res->assertJsonPath('spreadsheet_id', '1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg');
+        $res->assertJsonPath('spreadsheet_id', '1TEST_MOCK_EMPLOYEE_SHEET_ID_ABCD1234567890');
 
         // Admin can read back config
         $getRes = $this->actingAs($admin)->get('/users/employee-sheet-config');
         $getRes->assertStatus(200);
-        $getRes->assertJsonPath('spreadsheet_id', '1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg');
+        $getRes->assertJsonPath('spreadsheet_id', '1TEST_MOCK_EMPLOYEE_SHEET_ID_ABCD1234567890');
     }
 
     public function test_sync_employees_handles_bcrypt_and_updates_database(): void
@@ -195,7 +197,7 @@ class EmployeeSheetSyncTest extends TestCase
 
         // Inject mock service
         $service = new EmployeeSheetService();
-        $service->setSpreadsheetId('1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg');
+        $service->setSpreadsheetId('1TEST_MOCK_EMPLOYEE_SHEET_ID_ABCD1234567890');
 
         $reflection = new \ReflectionClass($service);
         $prop = $reflection->getProperty('sheets');
@@ -329,7 +331,7 @@ class EmployeeSheetSyncTest extends TestCase
         });
 
         $service = new EmployeeSheetService();
-        $service->setSpreadsheetId('1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg');
+        $service->setSpreadsheetId('1TEST_MOCK_EMPLOYEE_SHEET_ID_ABCD1234567890');
 
         $reflection = new \ReflectionClass($service);
         $prop = $reflection->getProperty('sheets');
@@ -383,7 +385,7 @@ class EmployeeSheetSyncTest extends TestCase
         $mockValues->method('batchUpdate')->willReturn(true);
 
         $service = new EmployeeSheetService();
-        $service->setSpreadsheetId('1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg');
+        $service->setSpreadsheetId('1TEST_MOCK_EMPLOYEE_SHEET_ID_ABCD1234567890');
 
         $reflection = new \ReflectionClass($service);
         $prop = $reflection->getProperty('sheets');
