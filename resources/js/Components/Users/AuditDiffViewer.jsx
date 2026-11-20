@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
     ArrowRight, User, Mail, Phone, Shield, Building2, Sliders, 
     KeyRound, CheckCircle2, XCircle, Code, Info, Sparkles, 
-    RotateCcw, Trash2, Eye, EyeOff
+    RotateCcw, Trash2, Eye, EyeOff, FileSpreadsheet
 } from 'lucide-react';
 import { useLeanTheme } from '@/hooks/useLeanTheme';
 
@@ -388,11 +388,76 @@ export function AuditDiffViewer({ log }) {
         );
     }
 
+    if (log.action === 'BATCH_USERS_SYNCED_FROM_SHEET') {
+        return (
+            <div className={`p-3.5 rounded-xl border text-xs space-y-2.5 ${
+                isDark ? 'bg-slate-900/90 border-emerald-500/30' : 'bg-emerald-50/70 border-emerald-200'
+            }`}>
+                <div className={`flex items-center gap-2 font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-800'}`}>
+                    <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
+                    <span>Sinkronisasi Massal dari Google Spreadsheet</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                    <div className={`p-2 rounded-lg border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
+                        <span className={`block text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>User Baru:</span>
+                        <span className="font-bold text-emerald-500">{changes.created_count ?? 0}</span>
+                    </div>
+                    <div className={`p-2 rounded-lg border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
+                        <span className={`block text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>User Diperbarui:</span>
+                        <span className="font-bold text-sky-500">{changes.updated_count ?? 0}</span>
+                    </div>
+                    <div className={`p-2 rounded-lg border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
+                        <span className={`block text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Password Dihash:</span>
+                        <span className="font-bold text-amber-500">{changes.hashed_passwords ?? 0}</span>
+                    </div>
+                    <div className={`p-2 rounded-lg border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
+                        <span className={`block text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Error / Kendala:</span>
+                        <span className={`font-bold ${changes.errors_count > 0 ? 'text-rose-500' : 'text-slate-400'}`}>{changes.errors_count ?? 0}</span>
+                    </div>
+                </div>
+                {changes.spreadsheet_id && (
+                    <div className="text-[10px] font-mono text-slate-500 truncate">
+                        ID Spreadsheet: {changes.spreadsheet_id}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    if (log.action === 'EMPLOYEES_EXPORTED_TO_SHEET') {
+        return (
+            <div className={`p-3.5 rounded-xl border text-xs space-y-2 ${
+                isDark ? 'bg-slate-900/90 border-teal-500/30' : 'bg-teal-50/70 border-teal-200'
+            }`}>
+                <div className={`flex items-center gap-2 font-bold ${isDark ? 'text-teal-400' : 'text-teal-800'}`}>
+                    <FileSpreadsheet className="h-4 w-4 text-teal-500" />
+                    <span>Ekspor Data Karyawan ke Google Spreadsheet</span>
+                </div>
+                <p className={`text-[11px] ${isDark ? 'text-slate-300' : 'text-teal-900/80'}`}>
+                    Sebanyak <strong>{changes.count ?? 0} akun karyawan</strong> berhasil diekspor lengkap dengan hash kata sandi Bcrypt ke tab <em>Data Karyawan</em>.
+                </p>
+                {changes.spreadsheet_id && (
+                    <div className="text-[10px] font-mono text-slate-500 truncate">
+                        ID Spreadsheet: {changes.spreadsheet_id}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
     // Standard Diff comparison (before & after)
     const diffs = extractDifferences(changes);
 
     return (
         <div className="space-y-2 pt-1">
+            {changes.source && (
+                <div className={`px-3 py-1.5 rounded-lg border text-[11px] flex items-center gap-2 ${
+                    isDark ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                }`}>
+                    <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                    <span>Sumber: <strong>{changes.source}</strong> {changes.row ? `(Baris #${changes.row})` : ''}</span>
+                </div>
+            )}
             {diffs.length === 0 ? (
                 <div className={`p-3 rounded-xl border text-center text-xs space-y-1 ${
                     isDark ? 'bg-slate-950 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'

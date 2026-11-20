@@ -95,11 +95,12 @@ export function AuditTrailTab() {
 
             // Action filter
             if (actionFilter !== 'all') {
-                if (actionFilter === 'password' && log.action !== 'PASSWORD_RESET') return false;
-                if (actionFilter === 'profile_permission' && !['USER_UPDATED', 'PERMISSIONS_UPDATED', 'BATCH_PERMISSIONS_UPDATED', 'USER_PERMISSIONS_BATCH_UPDATED'].includes(log.action)) return false;
-                if (actionFilter === 'created' && log.action !== 'USER_CREATED') return false;
+                if (actionFilter === 'password' && !['PASSWORD_RESET', 'PASSWORD_UPDATED_VIA_SHEET_SYNC'].includes(log.action)) return false;
+                if (actionFilter === 'profile_permission' && !['USER_UPDATED', 'USER_UPDATED_VIA_SHEET_SYNC', 'PERMISSIONS_UPDATED', 'BATCH_PERMISSIONS_UPDATED', 'USER_PERMISSIONS_BATCH_UPDATED'].includes(log.action)) return false;
+                if (actionFilter === 'created' && !['USER_CREATED', 'USER_CREATED_VIA_SHEET_SYNC'].includes(log.action)) return false;
                 if (actionFilter === 'archive' && !['USER_ARCHIVED', 'BATCH_USERS_ARCHIVED'].includes(log.action)) return false;
                 if (actionFilter === 'restore' && !['USER_RESTORED', 'BATCH_USERS_RESTORED'].includes(log.action)) return false;
+                if (actionFilter === 'sheet_sync' && !['PASSWORD_UPDATED_VIA_SHEET_SYNC', 'USER_UPDATED_VIA_SHEET_SYNC', 'USER_CREATED_VIA_SHEET_SYNC', 'BATCH_USERS_SYNCED_FROM_SHEET', 'EMPLOYEES_EXPORTED_TO_SHEET'].includes(log.action)) return false;
             }
 
             // Search query
@@ -134,10 +135,10 @@ export function AuditTrailTab() {
             if (createdAt >= past24h) {
                 count24h++;
             }
-            if (['USER_UPDATED', 'PERMISSIONS_UPDATED', 'BATCH_PERMISSIONS_UPDATED'].includes(log.action)) {
+            if (['USER_UPDATED', 'USER_UPDATED_VIA_SHEET_SYNC', 'PERMISSIONS_UPDATED', 'BATCH_PERMISSIONS_UPDATED'].includes(log.action)) {
                 countPerms++;
             }
-            if (log.action === 'PASSWORD_RESET') {
+            if (['PASSWORD_RESET', 'PASSWORD_UPDATED_VIA_SHEET_SYNC'].includes(log.action)) {
                 countPass++;
             }
             if (['USER_ARCHIVED', 'BATCH_USERS_ARCHIVED'].includes(log.action)) {
@@ -235,6 +236,51 @@ export function AuditTrailTab() {
                 }
                 return <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${isDark ? 'bg-sky-500/20 text-sky-300 border-sky-500/30' : 'bg-sky-100 text-sky-800 border-sky-200'}`}>Data Diperbarui</span>;
             }
+            case 'PASSWORD_UPDATED_VIA_SHEET_SYNC':
+                return (
+                    <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border inline-flex items-center gap-1.5 ${isDark ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-amber-100 text-amber-800 border-amber-200'}`}>
+                        <FileSpreadsheet className="h-3 w-3 text-emerald-500" />
+                        <span>Password (Sync Sheet)</span>
+                    </span>
+                );
+            case 'USER_UPDATED_VIA_SHEET_SYNC':
+                return (
+                    <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border inline-flex items-center gap-1.5 ${isDark ? 'bg-sky-500/20 text-sky-300 border-sky-500/40' : 'bg-sky-100 text-sky-800 border-sky-200'}`}>
+                        <FileSpreadsheet className="h-3 w-3 text-emerald-500" />
+                        <span>Data Diperbarui (Sheet)</span>
+                    </span>
+                );
+            case 'USER_CREATED_VIA_SHEET_SYNC':
+                return (
+                    <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border inline-flex items-center gap-1.5 ${isDark ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-emerald-100 text-emerald-800 border-emerald-200'}`}>
+                        <FileSpreadsheet className="h-3 w-3 text-emerald-500" />
+                        <span>User Baru (Sheet)</span>
+                    </span>
+                );
+            case 'BATCH_USERS_SYNCED_FROM_SHEET':
+                return (
+                    <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border inline-flex items-center gap-1.5 ${isDark ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-emerald-100 text-emerald-800 border-emerald-200'}`}>
+                        <FileSpreadsheet className="h-3 w-3 text-emerald-500" />
+                        <span>Sync Massal Sheet</span>
+                        {log?.changes?.hashed_passwords > 0 && (
+                            <span className="px-1.5 py-0.2 rounded bg-amber-600 text-white keep-white font-black text-[9px]" title="Password Dihash">
+                                {log.changes.hashed_passwords} Pass
+                            </span>
+                        )}
+                    </span>
+                );
+            case 'EMPLOYEES_EXPORTED_TO_SHEET':
+                return (
+                    <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border inline-flex items-center gap-1.5 ${isDark ? 'bg-teal-500/20 text-teal-300 border-teal-500/40' : 'bg-teal-100 text-teal-800 border-teal-200'}`}>
+                        <FileSpreadsheet className="h-3 w-3 text-teal-500" />
+                        <span>Ekspor ke Sheet</span>
+                        {log?.changes?.count && (
+                            <span className="px-1.5 py-0.2 rounded bg-teal-600 text-white keep-white font-black text-[9px]">
+                                {log.changes.count}
+                            </span>
+                        )}
+                    </span>
+                );
             default:
                 return <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${isDark ? 'bg-slate-700/60 text-slate-300 border-slate-600' : 'bg-slate-100 text-slate-700 border-slate-300'}`}>{action}</span>;
         }
@@ -453,6 +499,7 @@ export function AuditTrailTab() {
                             <option value="created">User Baru Dibuat</option>
                             <option value="archive">Di-Archive (Soft Delete)</option>
                             <option value="restore">Dipulihkan</option>
+                            <option value="sheet_sync">Sinkronisasi Spreadsheet</option>
                         </select>
 
                         <button

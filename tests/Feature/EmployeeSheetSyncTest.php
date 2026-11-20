@@ -223,10 +223,22 @@ class EmployeeSheetSyncTest extends TestCase
         // Password hash should remain original
         $this->assertEquals($existingHash, $budi->password);
 
-        // Verify UserAuditLog
-        $log = UserAuditLog::where('action', 'BATCH_USERS_SYNCED_FROM_SHEET')->latest()->first();
-        $this->assertNotNull($log);
-        $this->assertEquals($admin->id, $log->admin_id);
+        // Verify UserAuditLogs
+        $batchLog = UserAuditLog::where('action', 'BATCH_USERS_SYNCED_FROM_SHEET')->latest()->first();
+        $this->assertNotNull($batchLog);
+        $this->assertEquals($admin->id, $batchLog->admin_id);
+
+        $createdLog = UserAuditLog::where('action', 'USER_CREATED_VIA_SHEET_SYNC')
+            ->where('target_user_id', $ahmad->id)
+            ->first();
+        $this->assertNotNull($createdLog);
+        $this->assertEquals('Google Spreadsheet (Data Karyawan)', $createdLog->changes['source']);
+
+        $updatedLog = UserAuditLog::where('action', 'USER_UPDATED_VIA_SHEET_SYNC')
+            ->where('target_user_id', $budi->id)
+            ->first();
+        $this->assertNotNull($updatedLog);
+        $this->assertEquals('admin', $updatedLog->changes['after']['role']);
     }
 
     public function test_export_and_sync_sheet_routes_are_not_intercepted_by_wildcard_user_id(): void
@@ -328,5 +340,71 @@ class EmployeeSheetSyncTest extends TestCase
 
         $this->assertTrue($success);
         $this->assertEquals('Data Karyawan!A2:I2', $updatedRange);
+    }
+
+    public function test_sync_employees_records_password_updated_via_sheet_sync_audit_log(): void
+    {
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'department' => 'IT',
+            'staff_name' => 'Admin Pass Sync',
+        ]);
+
+        $existingStaff = User::factory()->create([
+            'name' => 'Rudi Staff',
+            'staff_name' => 'Rudi Staff',
+            'email' => 'rudi@telunasresorts.com',
+            'whatsapp_number' => '628123444555',
+            'department' => 'Kitchen',
+            'password' => Hash::make('OldSecret2025!'),
+        ]);
+
+        $mockSheets = $this->createMock(Sheets::class);
+        $mockSpreadsheets = $this->createMock(Spreadsheets::class);
+        $mockValues = $this->createMock(SpreadsheetsValues::class);
+
+        $mockSheets->spreadsheets = $mockSpreadsheets;
+        $mockSheets->spreadsheets_values = $mockValues;
+
+        $meta = new Spreadsheet();
+        $sheetObj = new Sheet();
+        $props = new SheetProperties();
+        $props->setTitle('Data Karyawan');
+        $sheetObj->setProperties($props);
+        $meta->setSheets([$sheetObj]);
+        $mockSpreadsheets->method('get')->willReturn($meta);
+
+        // Row has plain text password 'NewTelunas2026!'
+        $valRange = new ValueRange();
+        $valRange->setValues([
+            ['Rudi Staff', 'Kitchen', '628123444555', 'rudi@telunasresorts.com', 'NewTelunas2026!', 'staff', '', 'Aktif', ''],
+        ]);
+        $mockValues->method('get')->willReturn($valRange);
+        $mockValues->method('batchUpdate')->willReturn(true);
+
+        $service = new EmployeeSheetService();
+        $service->setSpreadsheetId('1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg');
+
+        $reflection = new \ReflectionClass($service);
+        $prop = $reflection->getProperty('sheets');
+        $prop->setAccessible(true);
+        $prop->setValue($service, $mockSheets);
+
+        $result = $service->syncEmployeesFromSheet($admin);
+
+        $this->assertTrue($result['success']);
+        $this->assertEquals(1, $result['hashed_passwords']);
+
+        // Check password changed in DB
+        $freshRudi = $existingStaff->fresh();
+        $this->assertTrue(Hash::check('NewTelunas2026!', $freshRudi->password));
+
+        // Check audit log
+        $passLog = UserAuditLog::where('action', 'PASSWORD_UPDATED_VIA_SHEET_SYNC')
+            ->where('target_user_id', $existingStaff->id)
+            ->first();
+        $this->assertNotNull($passLog);
+        $this->assertEquals($admin->id, $passLog->admin_id);
+        $this->assertTrue($passLog->changes['after']['password_reset']);
     }
 }

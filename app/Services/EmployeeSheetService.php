@@ -409,6 +409,18 @@ class EmployeeSheetService
 
             try {
                 if ($existingUser) {
+                    $before = [
+                        'name'            => $existingUser->name,
+                        'staff_name'      => $existingUser->staff_name,
+                        'email'           => $existingUser->email,
+                        'role'            => $existingUser->role,
+                        'department'      => $existingUser->department,
+                        'subdivision'     => $existingUser->subdivision,
+                        'whatsapp_number' => $existingUser->whatsapp_number,
+                        'is_active'       => $existingUser->is_active,
+                    ];
+                    $passwordChanged = !empty($passwordForDb);
+
                     // Update existing user
                     $existingUser->name = $rawName;
                     $existingUser->staff_name = $rawName;
@@ -436,6 +448,61 @@ class EmployeeSheetService
 
                     $existingUser->save();
                     $updated++;
+
+                    $after = [
+                        'name'            => $existingUser->name,
+                        'staff_name'      => $existingUser->staff_name,
+                        'email'           => $existingUser->email,
+                        'role'            => $existingUser->role,
+                        'department'      => $existingUser->department,
+                        'subdivision'     => $existingUser->subdivision,
+                        'whatsapp_number' => $existingUser->whatsapp_number,
+                        'is_active'       => $existingUser->is_active,
+                        'password_reset'  => $passwordChanged,
+                    ];
+
+                    if ($actingAdmin) {
+                        try {
+                            if ($passwordChanged) {
+                                UserAuditLog::record(
+                                    $actingAdmin,
+                                    $existingUser,
+                                    'PASSWORD_UPDATED_VIA_SHEET_SYNC',
+                                    [
+                                        'source'         => 'Google Spreadsheet (Data Karyawan)',
+                                        'spreadsheet_id' => $this->spreadsheetId,
+                                        'row'            => $rowNumber,
+                                        'before'         => $before,
+                                        'after'          => $after,
+                                    ]
+                                );
+                            } elseif (
+                                $before['name'] !== $after['name'] ||
+                                $before['staff_name'] !== $after['staff_name'] ||
+                                $before['department'] !== $after['department'] ||
+                                $before['role'] !== $after['role'] ||
+                                $before['whatsapp_number'] !== $after['whatsapp_number'] ||
+                                $before['subdivision'] !== $after['subdivision'] ||
+                                $before['email'] !== $after['email'] ||
+                                $before['is_active'] !== $after['is_active']
+                            ) {
+                                UserAuditLog::record(
+                                    $actingAdmin,
+                                    $existingUser,
+                                    'USER_UPDATED_VIA_SHEET_SYNC',
+                                    [
+                                        'source'         => 'Google Spreadsheet (Data Karyawan)',
+                                        'spreadsheet_id' => $this->spreadsheetId,
+                                        'row'            => $rowNumber,
+                                        'before'         => $before,
+                                        'after'          => $after,
+                                    ]
+                                );
+                            }
+                        } catch (\Throwable $logEx) {
+                            Log::warning("EmployeeSheetService: Failed recording audit log for updated user {$existingUser->id}: " . $logEx->getMessage());
+                        }
+                    }
                 } else {
                     // Create new user
                     $newUser = new User([
@@ -453,6 +520,32 @@ class EmployeeSheetService
                     ]);
                     $newUser->save();
                     $created++;
+
+                    if ($actingAdmin) {
+                        try {
+                            UserAuditLog::record(
+                                $actingAdmin,
+                                $newUser,
+                                'USER_CREATED_VIA_SHEET_SYNC',
+                                [
+                                    'source'         => 'Google Spreadsheet (Data Karyawan)',
+                                    'spreadsheet_id' => $this->spreadsheetId,
+                                    'row'            => $rowNumber,
+                                    'created_user'   => [
+                                        'name'            => $newUser->name,
+                                        'email'           => $newUser->email,
+                                        'role'            => $newUser->role,
+                                        'department'      => $newUser->department,
+                                        'subdivision'     => $newUser->subdivision,
+                                        'whatsapp_number' => $newUser->whatsapp_number,
+                                        'permissions'     => $newUser->permissions,
+                                    ],
+                                ]
+                            );
+                        } catch (\Throwable $logEx) {
+                            Log::warning("EmployeeSheetService: Failed recording audit log for new user {$newUser->id}: " . $logEx->getMessage());
+                        }
+                    }
                 }
 
                 // If password was hashed or updated, write Bcrypt hash back to Column E
@@ -594,6 +687,24 @@ class EmployeeSheetService
                 $body,
                 ['valueInputOption' => 'USER_ENTERED']
             );
+        }
+
+        // Record UserAuditLog entry for export
+        $admin = auth()->user();
+        if ($admin) {
+            try {
+                UserAuditLog::record(
+                    $admin,
+                    null,
+                    'EMPLOYEES_EXPORTED_TO_SHEET',
+                    [
+                        'count'          => count($rows),
+                        'spreadsheet_id' => $this->spreadsheetId,
+                    ]
+                );
+            } catch (\Throwable $e) {
+                Log::warning('EmployeeSheetService: Failed recording export audit log: ' . $e->getMessage());
+            }
         }
 
         return [
