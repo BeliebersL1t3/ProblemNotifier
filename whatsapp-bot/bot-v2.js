@@ -68,6 +68,7 @@ function readEnvVar(keys) {
 }
 
 const BASE_URL = readEnvVar(['BASE_URL', 'APP_URL']) || 'http://TelunasIssueTracker.test';
+const PUBLIC_URL = (readEnvVar(['TAILSCALE_URL', 'APP_PUBLIC_URL']) || 'https://msi.taile8cc1e.ts.net').replace(/\/+$/, '');
 const BOT_API_KEY = readEnvVar(['BOT_API_KEY']);
 const BOT_PORT = (() => {
     const p = Number(readEnvVar(['BOT_PORT']));
@@ -939,7 +940,8 @@ async function startSock() {
                         `ℹ️ *WhatsApp Bot Bersifat Informasi (Info-Only)*\n` +
                         `_WhatsApp Group Is Notification-Only_\n\n` +
                         `Pembaruan status (*Mulai Kerja / Progress / Pending / Selesai*) serta pengalihan departemen dilakukan melalui *Web Dashboard Telunas* agar tim pelaksana, komentar progress, dan foto bukti tercatat rapi.\n` +
-                        `_Please update ticket status directly via the Web Dashboard._`
+                        `_Please update ticket status directly via the Web Dashboard._\n\n` +
+                        `🔗 *Buka Dashboard Telunas:* ${PUBLIC_URL}/lapangan`
                     );
                     continue;
                 }
@@ -1257,7 +1259,8 @@ async function startSock() {
                             `• *Lokasi:* ${accurateLocation}\n` +
                             `• *Departemen Dituju:* ${state.data.department}\n` +
                             `• *Pelapor:* ${state.data.reporter}\n\n` +
-                            `Laporan telah diteruskan ke grup terkait. Pembaruan status (*dikerjakan, progress, pending, pengalihan,* hingga *selesai*) akan dikirim otomatis ke WhatsApp ini. Terima kasih!`
+                            `Laporan telah diteruskan ke grup terkait. Pembaruan status (*dikerjakan, progress, pending, pengalihan,* hingga *selesai*) akan dikirim otomatis ke WhatsApp ini. Terima kasih!\n\n` +
+                            `🔗 *Pantau Laporan:* ${PUBLIC_URL}/lapangan?focus=${encodeURIComponent(issueId)}`
                         );
 
                         // Broadcast message content
@@ -1268,7 +1271,8 @@ async function startSock() {
                             `• *Lokasi:* ${accurateLocation}\n` +
                             `• *Departemen:* ${state.data.department}\n` +
                             `• *Pelapor:* ${state.data.reporter} (${state.data.reporter_dept || 'Staf'})\n` +
-                            `• *Deskripsi:* ${state.data.description}\n\n`;
+                            `• *Deskripsi:* ${state.data.description}\n\n` +
+                            `🔗 *Detail Tiket:* ${PUBLIC_URL}/lapangan?focus=${encodeURIComponent(issueId)}\n\n`;
 
                         // 1. Send to Location Group (FYI, Read-only)
                         const locKey = (accurateLocation || '').toLowerCase();
@@ -1667,6 +1671,13 @@ app.post(['/notify', '/api/notify'], async (req, res) => {
             }
 
             if (includeGeneral === true && botConfig.generalGroupId) {
+                targetGroupIds.add(botConfig.generalGroupId);
+            }
+        }
+
+        if (Boolean(req.body.generalOnly)) {
+            targetGroupIds.clear();
+            if (botConfig.generalGroupId) {
                 targetGroupIds.add(botConfig.generalGroupId);
             }
         }

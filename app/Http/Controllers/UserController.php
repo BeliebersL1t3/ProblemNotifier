@@ -1098,7 +1098,7 @@ class UserController extends Controller
     protected function dispatchUserCredentials(User $user, string $plainPassword, bool $isNew = false): void
     {
         $actionTitle = $isNew ? 'Akun Baru Telunas' : 'Pembaruan Password Akun';
-        $loginUrl = url('/login');
+        $loginUrl = \App\Services\TicketNotificationService::getTailscaleAppUrl('/login');
 
         $message = "🔐 *KREDENSIAL LOGIN WEB TELUNAS* 🔐\n\n"
             . "Halo *{$user->name}*,\n"

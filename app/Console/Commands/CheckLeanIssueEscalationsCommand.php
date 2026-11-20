@@ -72,6 +72,8 @@ class CheckLeanIssueEscalationsCommand extends Command
                 ? "\n• *Petugas:* {$issue->claimed_by_name}"
                 : '';
 
+            $tailscaleLink = TicketNotificationService::getTailscaleAppUrl("/lapangan?focus={$issueCode}");
+
             // Stage 1: >= 1 hour without update -> notify target department WhatsApp group
             if ($issue->group_escalated_at === null && $idleMinutes >= self::GROUP_ESCALATION_MINUTES) {
                 $groupMessage = "⏰ *PENGINGAT PROGRES (1 JAM TANPA KABAR)* ⏰\n\n"
@@ -82,7 +84,8 @@ class CheckLeanIssueEscalationsCommand extends Command
                     . "• *Pelapor:* {$issue->reporter_name}\n"
                     . "• *Status:* {$statusLabel}{$workersLine}\n"
                     . "• *Kabar Terakhir:* {$lastUpdateWib} ({$idleFormatted} lalu)\n\n"
-                    . "Mohon Supervisor/tim segera memperbarui *Update Progres*, menandai *Pending* jika terkendala, atau *Selesai* di aplikasi Telunas Issue Tracker. Jika masih tanpa kabar hingga *3 jam*, laporan akan otomatis diteruskan ke Owner.";
+                    . "Mohon Supervisor/tim segera memperbarui *Update Progres*, menandai *Pending* jika terkendala, atau *Selesai* di aplikasi Telunas Issue Tracker. Jika masih tanpa kabar hingga *3 jam*, laporan akan otomatis diteruskan ke Owner.\n\n"
+                    . "🔗 *Buka Tiket:* {$tailscaleLink}";
 
                 $sent = TicketNotificationService::sendWhatsAppGroup([
                     'message'         => $groupMessage,
@@ -139,7 +142,8 @@ class CheckLeanIssueEscalationsCommand extends Command
                     . "• *Status:* {$statusLabel}{$workersLine}\n"
                     . "• *Dibuat:* {$createdWib}\n"
                     . "• *Kabar Terakhir:* {$lastUpdateWib} (*{$idleFormatted}* tanpa update)\n\n"
-                    . "Tiket ini telah melewati batas *3 jam* tanpa pembaruan progres maupun status Pending dari departemen terkait.";
+                    . "Tiket ini telah melewati batas *3 jam* tanpa pembaruan progres maupun status Pending dari departemen terkait.\n\n"
+                    . "🔗 *Tinjau Tiket:* {$tailscaleLink}";
 
                 $anyOwnerDelivered = false;
                 foreach ($ownerPhones as $phone) {

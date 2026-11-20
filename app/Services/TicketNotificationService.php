@@ -11,6 +11,19 @@ use Illuminate\Support\Facades\Log;
 class TicketNotificationService
 {
     /**
+     * Resolve public Tailscale application URL for clickable links in WhatsApp messages.
+     */
+    public static function getTailscaleAppUrl(?string $path = null): string
+    {
+        $base = rtrim(env('TAILSCALE_URL', env('APP_PUBLIC_URL', 'https://msi.taile8cc1e.ts.net')), '/');
+        if (!empty($path)) {
+            $path = '/' . ltrim($path, '/');
+            return $base . $path;
+        }
+        return $base;
+    }
+
+    /**
      * Resolve configured WhatsApp Bot HTTP base URL.
      */
     protected static function botBaseUrl(): string
@@ -217,13 +230,16 @@ class TicketNotificationService
             ->whereNotNull('whatsapp_number')
             ->get();
 
+        $ticketLink = self::getTailscaleAppUrl("/tickets?id={$ticket->id}");
+
         foreach ($hods as $hod) {
             $msg = "🔔 *Pemberitahuan Tiket Menunggu Tinjauan HOD*\n\n"
                  . "Tipe: *{$actionTitle}*\n"
                  . "Nomor Tiket: *{$ticket->ticket_number}*\n"
                  . "Staf: *{$ticket->staff_name}*\n"
                  . "Departemen: *{$ticket->department}*\n\n"
-                 . "Silakan masuk ke Web Dashboard untuk meninjau dan memberikan persetujuan.";
+                 . "Silakan masuk ke Web Dashboard untuk meninjau dan memberikan persetujuan:\n"
+                 . "🔗 {$ticketLink}";
             self::sendWhatsApp($hod->whatsapp_number, $msg);
         }
     }
@@ -248,13 +264,16 @@ class TicketNotificationService
             ->whereNotNull('whatsapp_number')
             ->get();
 
+        $ticketLink = self::getTailscaleAppUrl("/tickets?id={$ticket->id}");
+
         foreach ($admins as $admin) {
             $msg = "📋 *[Info Monitoring] Pendaftaran Akun Baru*\n\n"
                  . "Pengguna: *{$ticket->staff_name}*\n"
                  . "Departemen: *{$ticket->department}*\n"
                  . "Nomor Tiket: *{$ticket->ticket_number}*\n"
                  . "Status: *Menunggu Tinjauan HOD*\n\n"
-                 . "User baru telah mendaftar dan menunggu verifikasi dari HOD departemen terkait. Anda dapat memantau statusnya di Web Dashboard.";
+                 . "User baru telah mendaftar dan menunggu verifikasi dari HOD departemen terkait.\n"
+                 . "🔗 *Pantau Tiket:* {$ticketLink}";
             self::sendWhatsApp($admin->whatsapp_number, $msg);
         }
     }
@@ -284,6 +303,8 @@ class TicketNotificationService
             ->whereNotNull('whatsapp_number')
             ->get();
 
+        $ticketLink = self::getTailscaleAppUrl("/tickets?id={$ticket->id}");
+
         foreach ($admins as $admin) {
             if ($isDirectHodTransfer) {
                 $msg = "👑 *Permohonan Pindah Departemen (HOD)*\n\n"
@@ -292,14 +313,15 @@ class TicketNotificationService
                      . "Departemen Tujuan: *{$targetDisplay}*\n"
                      . "Alasan: " . ($ticket->reason ?: '-') . "\n\n"
                      . "Status: Menunggu ACC Final Admin (Tersedia opsi penetapan status HOD di departemen baru).\n"
-                     . "Silakan login ke Web Dashboard untuk meninjau tiket.";
+                     . "🔗 *Tinjau Tiket:* {$ticketLink}";
             } else {
                 $msg = "👑 *Pemberitahuan Tiket Menunggu ACC Final Admin*\n\n"
                      . "Tipe: *{$actionTitle}*\n"
                      . "Nomor: *{$ticket->ticket_number}*\n"
                      . "Staf: *{$ticket->staff_name}* ({$ticket->department})\n"
                      . "Catatan HOD: " . ($ticket->hod_notes ?: '-') . "\n\n"
-                     . "Silakan login ke Web Dashboard untuk memberikan persetujuan final.";
+                     . "Silakan login ke Web Dashboard untuk memberikan persetujuan final:\n"
+                     . "🔗 {$ticketLink}";
             }
             self::sendWhatsApp($admin->whatsapp_number, $msg);
         }
@@ -349,10 +371,12 @@ class TicketNotificationService
 
         if ($targetPhone && $allowed) {
             $icon = $approved ? '✅' : '❌';
+            $ticketLink = self::getTailscaleAppUrl("/tickets?id={$ticket->id}");
             $waMsg = "{$icon} *Pemberitahuan Status Tiket {$ticket->ticket_number}*\n\n"
                    . "Halo *{$ticket->staff_name}*,\n\n"
                    . "Permohonan *{$typeLabel}* Anda berstatus: *{$statusLabel}*.\n\n"
                    . ($approved ? "Sekarang Anda dapat menggunakan akun/fitur tersebut di Web Dashboard." : "⚠️ Alasan Penolakan:\n_{$reason}_") . "\n\n"
+                   . "🔗 *Lihat Tiket:* {$ticketLink}\n\n"
                    . "Terima kasih.";
             self::sendWhatsApp($targetPhone, $waMsg);
         }
@@ -404,6 +428,7 @@ class TicketNotificationService
 
         // 3. Direct WhatsApp notification to user if enabled
         if ($targetUser->notify_whatsapp_tickets && !empty($targetUser->whatsapp_number)) {
+            $profileLink = self::getTailscaleAppUrl('/profile');
             if ($isGranted) {
                 $waMsg = "👑 *PEMBERITAHUAN HOD TELUNAS* 👑\n\n"
                        . "Halo *{$targetUser->name}*,\n\n"
@@ -411,14 +436,14 @@ class TicketNotificationService
                        . ($hodTitle ? " ({$hodTitle})" : "") . ".\n\n"
                        . "• *Ditetapkan oleh Admin:* {$adminName}\n"
                        . "• *Wewenang:* Anda kini dapat meninjau & menyetujui tiket permohonan staf dan akun baru di departemen Anda.\n\n"
-                       . "Silakan masuk ke Web Dashboard Telunas untuk melihat detail akun Anda.";
+                       . "🔗 *Buka Profil & Wewenang:* {$profileLink}";
             } else {
                 $waMsg = "⚠️ *PEMBERITAHUAN HOD TELUNAS* ⚠️\n\n"
                        . "Halo *{$targetUser->name}*,\n\n"
                        . "Status *Head of Department (HOD)* Anda untuk departemen *{$department}* telah *DICABUT*.\n\n"
                        . "• *Dicabut oleh Admin:* {$adminName}\n"
                        . "• *Status Terkini:* Anggota Staf Biasa\n\n"
-                       . "Akses peninjauan tiket HOD untuk akun Anda telah dinonaktifkan.";
+                       . "🔗 *Buka Profil:* {$profileLink}";
             }
             self::sendWhatsApp($targetUser->whatsapp_number, $waMsg);
         }
