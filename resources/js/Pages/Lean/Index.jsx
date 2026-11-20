@@ -1042,7 +1042,7 @@ export default function LeanIndex({
                 data.append('reporter_phone', staffReporterPhone.trim());
             }
             data.append('start_in_progress', startInProgress ? '1' : '0');
-            if (startInProgress && workersStr) {
+            if (workersStr) {
                 data.append('assigned_workers', workersStr);
             }
             if (compressed?.file) {
@@ -1145,7 +1145,9 @@ export default function LeanIndex({
         if (!issue) return;
         const existingActive = Array.isArray(issue.active_workers) && issue.active_workers.length > 0
             ? issue.active_workers
-            : (issue.claimed_by_name ? issue.claimed_by_name.split(',').map((s) => s.trim()).filter(Boolean) : []);
+            : (Array.isArray(issue.initial_workers) && issue.initial_workers.length > 0
+                ? issue.initial_workers
+                : (issue.claimed_by_name ? issue.claimed_by_name.split(',').map((s) => s.trim()).filter(Boolean) : []));
         const defaultWorkers = existingActive.length > 0
             ? existingActive
             : (!currentUser?.is_admin && (currentUser?.staff_name || currentUser?.name) ? [currentUser.staff_name || currentUser.name] : []);
@@ -1208,7 +1210,9 @@ export default function LeanIndex({
         if (!issue) return;
         const currentActive = Array.isArray(issue.active_workers) && issue.active_workers.length > 0
             ? issue.active_workers
-            : (issue.claimed_by_name ? issue.claimed_by_name.split(',').map((s) => s.trim()).filter(Boolean) : []);
+            : (Array.isArray(issue.initial_workers) && issue.initial_workers.length > 0
+                ? issue.initial_workers
+                : (issue.claimed_by_name ? issue.claimed_by_name.split(',').map((s) => s.trim()).filter(Boolean) : []));
         setProgressWorkers(currentActive);
         setProgressCustomWorker('');
         setProgressComment('');
@@ -1293,7 +1297,11 @@ export default function LeanIndex({
         if (!issue) return;
         const currentActive = Array.isArray(issue.active_workers) && issue.active_workers.length > 0
             ? issue.active_workers
-            : (issue.claimed_by_name ? issue.claimed_by_name.split(',').map((s) => s.trim()).filter(Boolean) : []);
+            : (Array.isArray(issue.progress_workers) && issue.progress_workers.length > 0
+                ? issue.progress_workers
+                : (Array.isArray(issue.initial_workers) && issue.initial_workers.length > 0
+                    ? issue.initial_workers
+                    : (issue.claimed_by_name ? issue.claimed_by_name.split(',').map((s) => s.trim()).filter(Boolean) : [])));
         const fallbackWorker = (!currentUser?.is_admin && (currentUser?.staff_name || currentUser?.name))
             ? [currentUser.staff_name || currentUser.name]
             : [];
@@ -4751,7 +4759,7 @@ export default function LeanIndex({
 
                                     {activeDetailIssue.initial_workers && activeDetailIssue.initial_workers.length > 0 && (
                                         <p className={`text-[11px] ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                                            {isEn ? 'Initial Workers (Claim):' : 'Pekerja Awal (Claim):'} <strong>{activeDetailIssue.initial_workers.join(', ')}</strong>
+                                            {isEn ? 'Initial Assigned Workers:' : 'Pekerja Awal Ditugaskan:'} <strong>{activeDetailIssue.initial_workers.join(', ')}</strong>
                                         </p>
                                     )}
 
@@ -4829,6 +4837,7 @@ export default function LeanIndex({
                                                 const effectiveLogType = isResumedFromPendingLog ? 'progress' : log.type;
 
                                                 const badgeStyles = isDark ? ({
+                                                    assignment: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
                                                     claim: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
                                                     progress: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
                                                     pending: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
@@ -4836,6 +4845,7 @@ export default function LeanIndex({
                                                     escalation_group: 'bg-amber-500/25 text-amber-300 border-amber-500/40',
                                                     escalation_owner: 'bg-rose-500/25 text-rose-300 border-rose-500/40',
                                                 }[effectiveLogType] || 'bg-slate-500/20 text-slate-300 border-slate-500/30') : ({
+                                                    assignment: 'bg-indigo-100 text-indigo-800 border-indigo-300',
                                                     claim: 'bg-amber-100 text-amber-800 border-amber-300',
                                                     progress: 'bg-sky-100 text-sky-800 border-sky-300',
                                                     pending: 'bg-orange-100 text-orange-800 border-orange-300',
@@ -4845,6 +4855,7 @@ export default function LeanIndex({
                                                 }[effectiveLogType] || 'bg-slate-100 text-slate-700 border-slate-300');
 
                                                 const typeText = {
+                                                    assignment: isEn ? 'Assignment' : 'Penugasan',
                                                     claim: isEn ? 'Claim / Start' : 'Claim / Kerja',
                                                     progress: 'Progress',
                                                     pending: 'Pending',

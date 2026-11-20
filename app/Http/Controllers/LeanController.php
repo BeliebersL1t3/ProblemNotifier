@@ -494,15 +494,11 @@ class LeanController extends Controller
 
         // Assigned workers resolution (multi-select array or comma-separated string)
         $rawWorkers = $request->input('assigned_workers');
-        $workersList = [];
-        $workerNames = null;
-        if ($startInProgress) {
-            $workersList = LeanIssue::normalizeWorkerList($rawWorkers);
-            if (empty($workersList)) {
-                $workersList = [$receiverName];
-            }
-            $workerNames = implode(', ', $workersList);
+        $workersList = LeanIssue::normalizeWorkerList($rawWorkers);
+        if ($startInProgress && empty($workersList)) {
+            $workersList = [$receiverName];
         }
+        $workerNames = !empty($workersList) ? implode(', ', $workersList) : null;
 
         $accs = [];
         foreach ($targetDepts as $dept) {
@@ -547,10 +543,10 @@ class LeanController extends Controller
             'claimed_at'              => $startInProgress ? $now : null,
             'last_progress_at'        => $timerAnchor,
             'estimated_completion_at' => null,
-            'initial_workers'         => $startInProgress ? $workersList : [],
-            'progress_workers'        => $startInProgress ? $workersList : [],
-            'active_workers'          => $startInProgress ? $workersList : [],
-            'contributors'            => $startInProgress ? $workersList : [],
+            'initial_workers'         => !empty($workersList) ? $workersList : [],
+            'progress_workers'        => !empty($workersList) ? $workersList : [],
+            'active_workers'          => !empty($workersList) ? $workersList : [],
+            'contributors'            => !empty($workersList) ? $workersList : [],
         ]);
 
         if ($startInProgress) {
@@ -560,6 +556,16 @@ class LeanController extends Controller
                 $receiverName,
                 $receiverDept,
                 'Langsung mulai dikerjakan saat laporan dicatat.',
+                $meta
+            );
+        } elseif (!empty($workersList)) {
+            $nowTs = Carbon::now('Asia/Jakarta')->format('d/m/Y H:i');
+            $meta = ['workers' => $workersList, 'active_workers' => $workersList, 'initial_workers' => $workersList];
+            $issue->addProgressLog(
+                'assignment',
+                $receiverName,
+                $receiverDept,
+                'Ditugaskan sejak awal: ' . $workerNames . " ({$nowTs})",
                 $meta
             );
         }
@@ -669,7 +675,13 @@ class LeanController extends Controller
         }
         $workersList = LeanIssue::normalizeWorkerList($rawWorkers);
         if (empty($workersList)) {
-            $workersList = [$actorName];
+            if (!empty($issue->active_workers)) {
+                $workersList = $issue->active_workers;
+            } elseif (!empty($issue->initial_workers)) {
+                $workersList = $issue->initial_workers;
+            } else {
+                $workersList = [$actorName];
+            }
         }
         $workersStr = implode(', ', $workersList);
 
@@ -679,13 +691,31 @@ class LeanController extends Controller
             ? filter_var($request->input('notify_reporter'), FILTER_VALIDATE_BOOLEAN)
             : true;
 
+        $prevWorkers = !empty($issue->active_workers)
+            ? $issue->active_workers
+            : (!empty($issue->initial_workers) ? $issue->initial_workers : []);
+        $prevLower = array_map('mb_strtolower', $prevWorkers);
+        $newLower = array_map('mb_strtolower', $workersList);
+        $addedWorkers = array_values(array_filter($workersList, fn ($w) => !in_array(mb_strtolower($w), $prevLower, true)));
+        $removedWorkers = array_values(array_filter($prevWorkers, fn ($w) => !in_array(mb_strtolower($w), $newLower, true)));
+
+        $tsStr = Carbon::now('Asia/Jakarta')->format('d/m/Y H:i');
+        $diffParts = [];
+        if (!empty($addedWorkers)) {
+            $diffParts[] = '+Bergabung: ' . implode(', ', $addedWorkers) . " ({$tsStr})";
+        }
+        if (!empty($removedWorkers)) {
+            $diffParts[] = '-Dilepas: ' . implode(', ', $removedWorkers) . " ({$tsStr})";
+        }
+        $diffText = implode(' | ', $diffParts);
+
         // Record initial workers only on first claim so evaluation retains who took the issue initially
         if (empty($issue->initial_workers)) {
             $issue->initial_workers = $workersList;
         }
         $issue->active_workers = $workersList;
         $issue->progress_workers = LeanIssue::mergeUniqueNames($issue->progress_workers, $workersList);
-        $issue->contributors = LeanIssue::mergeUniqueNames($issue->contributors, $workersList);
+        $issue->contributors = LeanIssue::mergeUniqueNames($issue->contributors, array_merge($prevWorkers, $workersList));
 
         // Automatically set ACC for this department
         $accs = $issue->department_accs ?? [];
@@ -716,14 +746,18 @@ class LeanController extends Controller
         $issue->resetProgressTimer();
 
         $logType = $wasPending ? 'progress' : 'claim';
-        $logMsg = $note !== ''
+        $baseMsg = $note !== ''
             ? $note
             : ($wasPending ? 'Melanjutkan kembali ke tahap Progress.' : 'Mulai dikerjakan.');
+        $logMsg = (!$wasPending || $note !== '') && $diffText !== '' ? "{$baseMsg} ({$diffText})" : $baseMsg;
 
         $logMeta = [
-            'workers'        => $workersList,
-            'active_workers' => $workersList,
-            'notified_wa'    => false,
+            'workers'         => $workersList,
+            'active_workers'  => $workersList,
+            'added_workers'   => $addedWorkers,
+            'removed_workers' => $removedWorkers,
+            'timestamp'       => $tsStr,
+            'notified_wa'     => false,
         ];
 
         $issue->addProgressLog($logType, $actorName, $dept, $logMsg, $logMeta);
@@ -816,17 +850,18 @@ class LeanController extends Controller
         }
         // Accumulate into historical progress & contributor rosters (do not remove past workers)
         $issue->progress_workers = LeanIssue::mergeUniqueNames($issue->progress_workers, $newWorkers);
-        $issue->contributors = LeanIssue::mergeUniqueNames($issue->contributors, $newWorkers);
+        $issue->contributors = LeanIssue::mergeUniqueNames($issue->contributors, array_merge($previousWorkers, $newWorkers));
         $issue->estimated_completion_at = null;
         // Every progress update resets the 1h Group / 3h Owner automatic reminder timer back to 0
         $issue->resetProgressTimer();
 
+        $tsStr = Carbon::now('Asia/Jakarta')->format('d/m/Y H:i');
         $diffParts = [];
         if (!empty($addedWorkers)) {
-            $diffParts[] = 'Ditambah: ' . implode(', ', $addedWorkers);
+            $diffParts[] = '+Ditambah: ' . implode(', ', $addedWorkers) . " ({$tsStr})";
         }
         if (!empty($removedWorkers)) {
-            $diffParts[] = 'Dikurangi: ' . implode(', ', $removedWorkers);
+            $diffParts[] = '-Dikurangi: ' . implode(', ', $removedWorkers) . " ({$tsStr})";
         }
         $diffText = implode(' | ', $diffParts);
         if ($comment !== '') {
@@ -839,6 +874,7 @@ class LeanController extends Controller
             'workers'         => $newWorkers,
             'added_workers'   => $addedWorkers,
             'removed_workers' => $removedWorkers,
+            'timestamp'       => $tsStr,
             'notified_wa'     => $notifyReporter,
         ];
 
@@ -970,9 +1006,20 @@ class LeanController extends Controller
         if (empty($finalWorkers)) {
             $finalWorkers = !empty($issue->active_workers)
                 ? $issue->active_workers
-                : [$actorName];
+                : (!empty($issue->progress_workers)
+                    ? $issue->progress_workers
+                    : (!empty($issue->initial_workers)
+                        ? $issue->initial_workers
+                        : [$actorName]));
         }
         $finalWorkersStr = implode(', ', $finalWorkers);
+
+        $previousWorkers = !empty($issue->active_workers) ? $issue->active_workers : [];
+        $prevLower = array_map('mb_strtolower', $previousWorkers);
+        $finalLower = array_map('mb_strtolower', $finalWorkers);
+        $removedWorkers = array_values(array_filter($previousWorkers, fn ($w) => !in_array(mb_strtolower($w), $finalLower, true)));
+        $addedWorkers = array_values(array_filter($finalWorkers, fn ($w) => !in_array(mb_strtolower($w), $prevLower, true)));
+        $tsStr = Carbon::now('Asia/Jakarta')->format('d/m/Y H:i');
 
         $issue->status = 'resolved';
         $issue->resolved_by_name = $finalWorkersStr;
@@ -985,15 +1032,28 @@ class LeanController extends Controller
         $issue->pending_reason = null;
         $issue->pending_since = null;
         $issue->active_workers = [];
-        $issue->contributors = LeanIssue::mergeUniqueNames($issue->contributors, $finalWorkers);
+        $issue->contributors = LeanIssue::mergeUniqueNames($issue->contributors, array_merge($previousWorkers, $finalWorkers));
+
+        $diffParts = [];
+        if (!empty($addedWorkers)) {
+            $diffParts[] = '+Ditambah saat selesai: ' . implode(', ', $addedWorkers) . " ({$tsStr})";
+        }
+        if (!empty($removedWorkers)) {
+            $diffParts[] = '-Dilepas saat penyelesaian: ' . implode(', ', $removedWorkers) . " ({$tsStr})";
+        }
+        $diffText = implode(' | ', $diffParts);
+        $fullNote = $diffText !== '' ? "{$note} ({$diffText})" : $note;
 
         $resolvedMeta = [
-            'workers'      => $finalWorkers,
-            'contributors' => $issue->contributors,
-            'has_photo'    => (bool) $resolutionImageUrl,
+            'workers'               => $finalWorkers,
+            'contributors'          => $issue->contributors,
+            'added_at_completion'   => $addedWorkers,
+            'removed_at_completion' => $removedWorkers,
+            'timestamp'             => $tsStr,
+            'has_photo'             => (bool) $resolutionImageUrl,
         ];
 
-        $issue->addProgressLog('resolved', $actorName, $dept, $note, $resolvedMeta);
+        $issue->addProgressLog('resolved', $actorName, $dept, $fullNote, $resolvedMeta);
 
         $issue->save();
 
