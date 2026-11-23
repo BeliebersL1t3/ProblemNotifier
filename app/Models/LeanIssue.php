@@ -57,9 +57,15 @@ class LeanIssue extends Model
         'needs_sheets_sync',
         'sheets_synced_at',
         'sheets_sync_error',
+        'map_resort',
+        'map_x',
+        'map_y',
+        'map_label',
     ];
 
     protected $casts = [
+        'map_x'                   => 'float',
+        'map_y'                   => 'float',
         'target_departments' => 'array',
         'department_accs'    => 'array',
         'transfer_history'   => 'array',

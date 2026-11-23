@@ -4,6 +4,7 @@ import { Link, router, usePage } from '@inertiajs/react';
 import {
     Table,
     LayoutGrid,
+    MapPin,
     BarChart3,
     CloudUpload,
     Wifi,
@@ -225,6 +226,15 @@ export function LeanHeader({
                         >
                             <LayoutGrid className="w-3.5 h-3.5" />
                             <span>{isEn ? 'Cards' : 'Kartu'}</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleViewSwitch('map')}
+                            className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewBtnClass('map')}`}
+                            title={isEn ? 'Interactive Resort Pin Map' : 'Peta Denah Resort & Pin Isu'}
+                        >
+                            <MapPin className="w-3.5 h-3.5" />
+                            <span>{isEn ? 'Map' : 'Peta'}</span>
                         </button>
                         <button
                             type="button"

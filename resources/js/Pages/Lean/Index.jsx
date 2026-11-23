@@ -61,6 +61,7 @@ import {
     getAutoTimerBadgeInfo,
 } from '@/Components/CampusFix/EtaPickerField';
 import { LeanAnalyticsView } from '@/Components/CampusFix/LeanAnalyticsView';
+import LeanInteractiveMapView from '@/Components/CampusFix/LeanInteractiveMapView';
 import { resolveIssueResortAndZone } from '@/constants/locations';
 import { DEPARTMENT_STAFF, normalizeDepartment } from '@/constants/staff';
 import { useLanguage } from '@/context/LanguageContext';
@@ -218,6 +219,7 @@ export default function LeanIndex({
             if (viewParam === 'analytics') return 'analytics';
             if (viewParam === 'table') return 'table';
             if (viewParam === 'cards') return 'cards';
+            if (viewParam === 'map') return 'map';
             if (window.innerWidth < 768) return 'cards';
             try {
                 return localStorage.getItem('lean_erp_view_mode') || 'cards';
@@ -240,8 +242,8 @@ export default function LeanIndex({
         setViewMode(nextView);
         if (typeof window !== 'undefined') {
             const url = new URL(window.location.href);
-            if (nextView === 'analytics') {
-                url.searchParams.set('view', 'analytics');
+            if (nextView === 'analytics' || nextView === 'map' || nextView === 'table') {
+                url.searchParams.set('view', nextView);
             } else {
                 url.searchParams.delete('view');
             }
@@ -469,6 +471,8 @@ export default function LeanIndex({
                 setViewMode('table');
             } else if (viewParam === 'cards') {
                 setViewMode('cards');
+            } else if (viewParam === 'map') {
+                setViewMode('map');
             }
 
             const deptParam = params.get('dept');
@@ -681,6 +685,26 @@ export default function LeanIndex({
     const [formImage, setFormImage] = useState(null);
     const [formImagePreview, setFormImagePreview] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // --- Report Form Map Pin State ---
+    const [formMapResort, setFormMapResort] = useState(null);
+    const [formMapX, setFormMapX] = useState(null);
+    const [formMapY, setFormMapY] = useState(null);
+    const [formMapLabel, setFormMapLabel] = useState('');
+
+    const handleOpenCreateIssueFromMap = ({ resort, x, y, label }) => {
+        setFormMapResort(resort || 'TPI');
+        setFormMapX(x);
+        setFormMapY(y);
+        setFormMapLabel(label || '');
+        if (resort === 'TPI' || resort === 'TBR') {
+            setFormMainLoc(resort);
+        }
+        if (label) {
+            setFormDetailLoc(label);
+        }
+        setShowReportModal(true);
+    };
 
     // --- Mobile & Offline Outbox State ---
     const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
@@ -1012,6 +1036,10 @@ export default function LeanIndex({
                 setFormDetailLoc('');
                 setFormTitle('');
                 setFormDescription('');
+                setFormMapResort(null);
+                setFormMapX(null);
+                setFormMapY(null);
+                setFormMapLabel('');
                 setFormImage(null);
                 setFormImagePreview(null);
                 setStaffReporterName('');
@@ -1050,6 +1078,18 @@ export default function LeanIndex({
             } else if (formImage) {
                 data.append('image', formImage);
             }
+            if (formMapResort) {
+                data.append('map_resort', formMapResort);
+            }
+            if (formMapX !== null && formMapX !== undefined) {
+                data.append('map_x', formMapX);
+            }
+            if (formMapY !== null && formMapY !== undefined) {
+                data.append('map_y', formMapY);
+            }
+            if (formMapLabel) {
+                data.append('map_label', formMapLabel);
+            }
 
             router.post('/lapangan/issues', data, {
                 onSuccess: () => {
@@ -1057,6 +1097,10 @@ export default function LeanIndex({
                     setFormDetailLoc('');
                     setFormTitle('');
                     setFormDescription('');
+                    setFormMapResort(null);
+                    setFormMapX(null);
+                    setFormMapY(null);
+                    setFormMapLabel('');
                     setFormImage(null);
                     setFormImagePreview(null);
                     setStaffReporterName('');
@@ -1654,6 +1698,58 @@ export default function LeanIndex({
             {/* MAIN CONTENT CONTAINER */}
             <main className="w-full px-4 sm:px-6 lg:px-8 pt-4 flex-1">
 
+                {/* Mobile View Switcher (< 768px) */}
+                <div className="md:hidden flex items-center justify-between p-1 rounded-xl border border-slate-700/60 bg-slate-900/60 mb-3.5">
+                    <button
+                        type="button"
+                        onClick={() => handleViewModeChange('cards')}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-all ${
+                            viewMode === 'cards'
+                                ? 'bg-emerald-600 text-white shadow-xs'
+                                : 'text-slate-400 hover:text-white'
+                        }`}
+                    >
+                        <LayoutGrid className="w-3.5 h-3.5" />
+                        <span>{isEn ? 'Cards' : 'Kartu'}</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleViewModeChange('table')}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-all ${
+                            viewMode === 'table'
+                                ? 'bg-emerald-600 text-white shadow-xs'
+                                : 'text-slate-400 hover:text-white'
+                        }`}
+                    >
+                        <Table className="w-3.5 h-3.5" />
+                        <span>{isEn ? 'Table' : 'Tabel'}</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleViewModeChange('map')}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-all ${
+                            viewMode === 'map'
+                                ? 'bg-amber-600 text-slate-950 font-black shadow-xs'
+                                : 'text-amber-400 hover:text-white'
+                        }`}
+                    >
+                        <MapPin className="w-3.5 h-3.5" />
+                        <span>{isEn ? 'Map' : 'Peta'}</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleViewModeChange('analytics')}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-all ${
+                            viewMode === 'analytics'
+                                ? 'bg-emerald-600 text-white shadow-xs'
+                                : 'text-slate-400 hover:text-white'
+                        }`}
+                    >
+                        <BarChart3 className="w-3.5 h-3.5" />
+                        <span>{isEn ? 'Stats' : 'Analisis'}</span>
+                    </button>
+                </div>
+
                 {/* OUTBOX BANNER: TICKETS QUEUED IN PHONE STORAGE */}
                 {outboxCount > 0 && (
                     <div className={`mb-4 p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-md transition-all liquid-glass-card liquid-glass-tint-amber ${
@@ -1720,7 +1816,7 @@ export default function LeanIndex({
 
 
                 {/* ERP CONTROLS BAR: SEARCH, DEPT, SORT, VIEW MODE, STATUS CHECKLIST */}
-                {viewMode !== 'analytics' && (
+                {viewMode !== 'analytics' && viewMode !== 'map' && (
                     <>
                         <div className="space-y-2.5 mb-3">
                     {/* Row 1: Search Bar Full Width */}
@@ -2048,8 +2144,17 @@ export default function LeanIndex({
                     </>
                 )}
 
-                {/* DATA PRESENTATION: ANALYTICS VIEW OR EMPTY STATE OR ERP TABLE / CARDS */}
-                {viewMode === 'analytics' ? (
+                {/* DATA PRESENTATION: MAP VIEW OR ANALYTICS VIEW OR EMPTY STATE OR ERP TABLE / CARDS */}
+                {viewMode === 'map' ? (
+                    <LeanInteractiveMapView
+                        issues={issues}
+                        currentUser={currentUser}
+                        onSelectIssue={setSelectedDetailIssue}
+                        onOpenCreateIssue={handleOpenCreateIssueFromMap}
+                        isDark={isDark}
+                        isEn={isEn}
+                    />
+                ) : viewMode === 'analytics' ? (
                     <LeanAnalyticsView
                         issues={issues}
                         departments={departments}
@@ -3322,6 +3427,35 @@ export default function LeanIndex({
                                     {isEn ? 'Official Recorder' : 'Pencatat Resmi'}
                                 </span>
                             </div>
+
+                            {/* PINNED LOCATION BADGE IF OPENED FROM MAP */}
+                            {formMapResort && (
+                                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs">
+                                    <div className="flex items-center gap-2 text-amber-300 font-semibold">
+                                        <MapPin className="w-4 h-4 text-amber-400 shrink-0" />
+                                        <span>
+                                            {isEn ? 'Pinned Location:' : 'Titik Lokasi Peta:'}{' '}
+                                            <strong className="text-white">{formMapResort}</strong> (
+                                            {typeof formMapX === 'number' ? formMapX.toFixed(1) : formMapX}%,{' '}
+                                            {typeof formMapY === 'number' ? formMapY.toFixed(1) : formMapY}%)
+                                            {formMapLabel ? ` • ${formMapLabel}` : ''}
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setFormMapResort(null);
+                                            setFormMapX(null);
+                                            setFormMapY(null);
+                                            setFormMapLabel('');
+                                        }}
+                                        className="text-slate-400 hover:text-rose-400 text-[11px] underline"
+                                        title={isEn ? 'Remove map pin' : 'Hapus pin lokasi'}
+                                    >
+                                        {isEn ? 'Clear Pin' : 'Hapus Pin'}
+                                    </button>
+                                </div>
+                            )}
 
                             {/* 1. STAF PELAPOR (YANG DATANG BERDISKUSI) DENGAN AUTOCOMPLETE */}
                             <div className="relative">

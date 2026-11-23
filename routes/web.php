@@ -133,6 +133,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/lapangan/issues/{issue}/pending', [LeanController::class, 'pending'])->name('lean.pending');
     Route::post('/lapangan/issues/{issue}/resolve', [LeanController::class, 'resolve'])->name('lean.resolve');
     Route::post('/lapangan/issues/{issue}/transfer', [LeanController::class, 'transfer'])->name('lean.transfer');
+    Route::post('/lapangan/issues/{issue}/pin', [LeanController::class, 'updateLocationPin'])->name('lean.pin');
     Route::delete('/lapangan/issues/{issue}', [LeanController::class, 'destroy'])->name('lean.destroy');
     Route::post('/lapangan/sync-sheets', [LeanController::class, 'syncGoogleSheets'])->name('lean.sync.sheets');
     Route::post('/lapangan/auto-sync', [LeanController::class, 'autoSyncSheets'])->name('lean.auto.sync');

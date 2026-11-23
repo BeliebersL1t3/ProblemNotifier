@@ -359,6 +359,10 @@ class LeanController extends Controller
                 'created_at_human'     => $item->created_at ? $item->created_at->locale(app()->getLocale())->diffForHumans() : '',
                 'transfer_history'     => $item->transfer_history ?? [],
                 'can_manage'           => self::canUserManageIssue($authUser, $item),
+                'map_resort'           => $item->map_resort,
+                'map_x'                => $item->map_x !== null ? (float) $item->map_x : null,
+                'map_y'                => $item->map_y !== null ? (float) $item->map_y : null,
+                'map_label'            => $item->map_label,
             ];
         });
 
@@ -428,6 +432,10 @@ class LeanController extends Controller
             'image'              => 'nullable|image|max:10240',
             'reported_at'        => 'nullable|date',
             'start_in_progress'  => 'nullable',
+            'map_resort'         => 'nullable|string|in:TPI,TBR',
+            'map_x'              => 'nullable|numeric|between:0,100',
+            'map_y'              => 'nullable|numeric|between:0,100',
+            'map_label'          => 'nullable|string|max:100',
         ]);
 
         $clientUuid = $request->input('client_uuid');
@@ -543,6 +551,10 @@ class LeanController extends Controller
             'claimed_at'              => $startInProgress ? $now : null,
             'last_progress_at'        => $timerAnchor,
             'estimated_completion_at' => null,
+            'map_resort'              => $request->input('map_resort'),
+            'map_x'                   => $request->filled('map_x') ? (float) $request->input('map_x') : null,
+            'map_y'                   => $request->filled('map_y') ? (float) $request->input('map_y') : null,
+            'map_label'               => $request->input('map_label'),
             'initial_workers'         => !empty($workersList) ? $workersList : [],
             'progress_workers'        => !empty($workersList) ? $workersList : [],
             'active_workers'          => !empty($workersList) ? $workersList : [],
@@ -1202,6 +1214,65 @@ class LeanController extends Controller
     }
 
     /**
+     * Update or attach/clear interactive map coordinates for a Lean issue.
+     */
+    public function updateLocationPin(Request $request, LeanIssue $issue)
+    {
+        $validated = $request->validate([
+            'clear'      => 'nullable|boolean',
+            'map_resort' => 'required_without:clear|nullable|string|in:TPI,TBR',
+            'map_x'      => 'required_without:clear|nullable|numeric|between:0,100',
+            'map_y'      => 'required_without:clear|nullable|numeric|between:0,100',
+            'map_label'  => 'nullable|string|max:100',
+        ]);
+
+        $currentUser = auth()->user();
+        $isAdmin = $currentUser && ($currentUser->is_admin || strtolower($currentUser->role ?? '') === 'admin');
+        $userDept = $currentUser ? $currentUser->department : null;
+
+        $isAuthorized = $isAdmin;
+        if (!$isAuthorized && $userDept) {
+            $targets = is_array($issue->target_departments) ? $issue->target_departments : [];
+            if (in_array($userDept, $targets, true) || $issue->reporter_dept === $userDept) {
+                $isAuthorized = true;
+            }
+        }
+
+        if (!$isAuthorized) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki hak akses untuk mengubah lokasi peta isu departemen lain.',
+            ], 403);
+        }
+
+        if ($request->boolean('clear')) {
+            $issue->map_resort = null;
+            $issue->map_x = null;
+            $issue->map_y = null;
+            $issue->map_label = null;
+            $issue->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pin lokasi berhasil dihapus dari isu #' . $issue->id,
+                'issue'   => $issue,
+            ]);
+        }
+
+        $issue->map_resort = $validated['map_resort'];
+        $issue->map_x = (float) $validated['map_x'];
+        $issue->map_y = (float) $validated['map_y'];
+        $issue->map_label = $validated['map_label'] ?? $issue->map_label;
+        $issue->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Pin lokasi berhasil ditautkan ke isu #' . $issue->id,
+            'issue'   => $issue,
+        ]);
+    }
+
+    /**
      * Soft delete an issue (mark as inactive 0 in Google Sheets, hidden from dashboard).
      */
     public function destroy(Request $request, LeanIssue $issue, GoogleSheetsSyncService $sheetsService)
@@ -1397,6 +1468,10 @@ class LeanController extends Controller
                 'created_at'           => $item->created_at ? $item->created_at->copy()->setTimezone('Asia/Jakarta')->format('d/m/Y H:i') . ' WIB' : null,
                 'created_at_raw'       => $item->created_at ? $item->created_at->toIso8601String() : null,
                 'created_at_human'     => $item->created_at ? $item->created_at->locale(app()->getLocale())->diffForHumans() : '',
+                'map_resort'           => $item->map_resort,
+                'map_x'                => $item->map_x !== null ? (float) $item->map_x : null,
+                'map_y'                => $item->map_y !== null ? (float) $item->map_y : null,
+                'map_label'            => $item->map_label,
             ];
         });
 
@@ -1422,6 +1497,10 @@ class LeanController extends Controller
             'reporter_phone'          => 'nullable|string|max:30',
             'source'                  => 'nullable|string|max:50',
             'image'                   => 'nullable|image|max:10240',
+            'map_resort'              => 'nullable|string|in:TPI,TBR',
+            'map_x'                   => 'nullable|numeric|between:0,100',
+            'map_y'                   => 'nullable|numeric|between:0,100',
+            'map_label'               => 'nullable|string|max:100',
         ]);
 
         $clientUuid = $request->input('client_uuid');
@@ -1477,6 +1556,10 @@ class LeanController extends Controller
             'reporter_phone'          => $resolvedReporterPhone,
             'image_url'               => $imageUrl,
             'status'                  => 'open',
+            'map_resort'              => $request->input('map_resort'),
+            'map_x'                   => $request->filled('map_x') ? (float) $request->input('map_x') : null,
+            'map_y'                   => $request->filled('map_y') ? (float) $request->input('map_y') : null,
+            'map_label'               => $request->input('map_label'),
             'last_progress_at'        => Carbon::now(config('app.timezone')),
             'estimated_completion_at' => null,
             'department_accs'         => [
