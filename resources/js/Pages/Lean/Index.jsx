@@ -27,6 +27,7 @@ import {
     MessageSquare,
     Table,
     LayoutGrid,
+    BarChart3,
     SlidersHorizontal,
     Search,
     Eye,
