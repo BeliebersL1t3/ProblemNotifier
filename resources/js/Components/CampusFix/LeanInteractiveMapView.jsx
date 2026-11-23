@@ -22,6 +22,8 @@ import {
     PanelRightOpen,
     ArrowRight,
     HelpCircle,
+    Filter,
+    SlidersHorizontal,
 } from 'lucide-react';
 import axios from 'axios';
 import { router } from '@inertiajs/react';
@@ -54,6 +56,7 @@ export default function LeanInteractiveMapView({
     const [customEndDate, setCustomEndDate] = useState('');
     const [selectedDeptFilter, setSelectedDeptFilter] = useState('all');
     const [selectedStatusFilter, setSelectedStatusFilter] = useState('all'); // 'all', 'open', 'in_progress', 'pending', 'resolved'
+    const [showMobileFilters, setShowMobileFilters] = useState(false);
 
     // 5. Sidebar Tray & Direct Pinning State
     const [showSidebar, setShowSidebar] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 1024 : true));
@@ -440,7 +443,7 @@ export default function LeanInteractiveMapView({
 
             {/* TOP BAR: ROW 1 (RESORT + MODES + ZOOM + SIDEBAR TOGGLE) */}
             <div
-                className={`p-3 rounded-2xl border shadow-md flex flex-wrap items-center justify-between gap-3 ${
+                className={`p-2 sm:p-3 rounded-2xl border shadow-md flex items-center justify-between gap-2 ${
                     isDark ? 'bg-slate-900/90 border-slate-700/80 text-white' : 'bg-white border-slate-200 text-slate-800'
                 }`}
             >
@@ -457,7 +460,7 @@ export default function LeanInteractiveMapView({
                             setActiveSelection(null);
                             setPendingIssueToPin(null);
                         }}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                             activeResort === 'TPI'
                                 ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-white/20'
                                 : isDark
@@ -465,7 +468,7 @@ export default function LeanInteractiveMapView({
                                 : 'text-slate-600 hover:text-slate-900'
                         }`}
                     >
-                        <span>🏝️ Private Island (TPI)</span>
+                        <span>🏝️ <span className="hidden sm:inline">Private Island (</span>TPI<span className="hidden sm:inline">)</span></span>
                         <span
                             className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
                                 activeResort === 'TPI' ? 'bg-black/25 text-white' : 'bg-slate-200 text-slate-700'
@@ -481,7 +484,7 @@ export default function LeanInteractiveMapView({
                             setActiveSelection(null);
                             setPendingIssueToPin(null);
                         }}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                             activeResort === 'TBR'
                                 ? 'bg-sky-600 text-white shadow-sm ring-1 ring-white/20'
                                 : isDark
@@ -489,7 +492,7 @@ export default function LeanInteractiveMapView({
                                 : 'text-slate-600 hover:text-slate-900'
                         }`}
                     >
-                        <span>🏖️ Beach Resort (TBR)</span>
+                        <span>🏖️ <span className="hidden sm:inline">Beach Resort (</span>TBR<span className="hidden sm:inline">)</span></span>
                         <span
                             className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
                                 activeResort === 'TBR' ? 'bg-black/25 text-white' : 'bg-slate-200 text-slate-700'
@@ -500,8 +503,8 @@ export default function LeanInteractiveMapView({
                     </button>
                 </div>
 
-                {/* Right controls: Mode Toggle, Zoom, Sidebar Switcher */}
-                <div className="flex items-center gap-2 flex-wrap">
+                {/* Right controls for Desktop (LG and UP) */}
+                <div className="hidden lg:flex items-center gap-2 flex-wrap">
                     {/* Interaction Mode Toggle */}
                     <div
                         className={`flex items-center p-1 rounded-xl border ${
@@ -616,13 +619,80 @@ export default function LeanInteractiveMapView({
                         )}
                     </button>
                 </div>
+
+                {/* Right controls for Mobile (Icon-First Header Bar) */}
+                <div className="flex lg:hidden items-center gap-1.5 shrink-0">
+                    {/* Mobile Quick Mode Toggle Icon Button */}
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const next = interactionMode === 'pin' ? 'navigate' : 'pin';
+                            setInteractionMode(next);
+                            setPendingIssueToPin(null);
+                        }}
+                        className={`h-8.5 px-2.5 rounded-xl border flex items-center gap-1 text-xs font-bold transition-all cursor-pointer ${
+                            interactionMode === 'pin' || pendingIssueToPin
+                                ? 'bg-amber-500 text-slate-950 border-amber-400 font-black shadow-xs ring-2 ring-amber-400/30 animate-pulse'
+                                : isDark
+                                ? 'bg-slate-800 text-slate-300 border-slate-700'
+                                : 'bg-slate-100 text-slate-700 border-slate-300'
+                        }`}
+                        title={interactionMode === 'pin' ? 'Mode Pin Aktif' : 'Taruh Pin Baru'}
+                    >
+                        <MapPin className="w-3.5 h-3.5 text-inherit" />
+                        <span className="text-[11px]">{interactionMode === 'pin' ? 'Pin Aktif' : 'Taruh Pin'}</span>
+                    </button>
+
+                    {/* Mobile Filter Toggle Icon Button */}
+                    <button
+                        type="button"
+                        onClick={() => setShowMobileFilters((f) => !f)}
+                        className={`w-8.5 h-8.5 rounded-xl border flex items-center justify-center transition-all cursor-pointer ${
+                            showMobileFilters
+                                ? 'bg-emerald-600 text-white border-emerald-500 shadow-xs'
+                                : isDark
+                                ? 'bg-slate-800 text-slate-300 border-slate-700'
+                                : 'bg-slate-100 text-slate-700 border-slate-300'
+                        }`}
+                        title="Filter Waktu & Status"
+                    >
+                        <SlidersHorizontal className="w-4 h-4" />
+                    </button>
+
+                    {/* Mobile Drawer Toggle Icon Button */}
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setShowSidebar((s) => {
+                                const next = !s;
+                                if (next) setActiveSelection(null);
+                                return next;
+                            });
+                        }}
+                        className={`h-8.5 px-2 rounded-xl border flex items-center gap-1 transition-all cursor-pointer ${
+                            showSidebar
+                                ? 'bg-emerald-600 text-white border-emerald-500 shadow-xs'
+                                : isDark
+                                ? 'bg-slate-800 text-slate-300 border-slate-700'
+                                : 'bg-slate-100 text-slate-700 border-slate-300'
+                        }`}
+                        title="Daftar Isu Denah"
+                    >
+                        <Layers className="w-4 h-4" />
+                        {unmappedIssues.length > 0 && (
+                            <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black">
+                                {unmappedIssues.length}
+                            </span>
+                        )}
+                    </button>
+                </div>
             </div>
 
-            {/* TOP BAR: ROW 2 (FILTERS & COUNTERS) */}
+            {/* TOP BAR: ROW 2 (FILTERS & COUNTERS) - Always visible on desktop (lg:flex), Collapsible on mobile */}
             <div
-                className={`p-2.5 sm:p-3 rounded-2xl border shadow-sm flex flex-wrap items-center justify-between gap-2.5 ${
-                    isDark ? 'bg-slate-900/80 border-slate-700/80' : 'bg-white border-slate-200'
-                }`}
+                className={`p-2.5 sm:p-3 rounded-2xl border shadow-sm items-center justify-between gap-2.5 ${
+                    showMobileFilters ? 'flex flex-wrap' : 'hidden lg:flex'
+                } ${isDark ? 'bg-slate-900/80 border-slate-700/80' : 'bg-white border-slate-200'}`}
             >
                 {/* Left: Filters */}
                 <div className="flex items-center gap-2 flex-wrap">
@@ -834,6 +904,42 @@ export default function LeanInteractiveMapView({
                         <span className="flex items-center gap-1 text-emerald-500">
                             <span className="w-2 h-2 rounded-full bg-emerald-500" /> Selesai
                         </span>
+                    </div>
+
+                    {/* FLOATING ZOOM DOCK FOR MOBILE (Google Maps Style) */}
+                    <div
+                        className={`absolute bottom-3 right-3 z-30 lg:hidden flex flex-col items-center gap-1 p-1 rounded-2xl shadow-xl border backdrop-blur-md ${
+                            isDark ? 'bg-slate-900/90 border-slate-700/80 text-white' : 'bg-white/95 border-slate-300 text-slate-800'
+                        }`}
+                    >
+                        <button
+                            type="button"
+                            onClick={handleZoomIn}
+                            className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-black/10 active:scale-95 transition-all cursor-pointer"
+                            title="Zoom In"
+                        >
+                            <ZoomIn className="w-4 h-4 text-emerald-500" />
+                        </button>
+                        <span className="text-[10px] font-mono font-bold select-none px-1">
+                            {Math.round(zoom * 100)}%
+                        </span>
+                        <button
+                            type="button"
+                            onClick={handleZoomOut}
+                            className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-black/10 active:scale-95 transition-all cursor-pointer"
+                            title="Zoom Out"
+                        >
+                            <ZoomOut className="w-4 h-4 text-emerald-500" />
+                        </button>
+                        <div className={`w-5 h-px my-0.5 ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`} />
+                        <button
+                            type="button"
+                            onClick={handleResetView}
+                            className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-black/10 active:scale-95 transition-all cursor-pointer"
+                            title="Reset Zoom"
+                        >
+                            <RotateCcw className="w-3.5 h-3.5 text-amber-500" />
+                        </button>
                     </div>
 
                     {/* Transformable Canvas Layer */}

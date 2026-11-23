@@ -46,6 +46,7 @@ import {
     History,
     Lock,
     Award,
+    Calendar,
     CalendarClock
 } from 'lucide-react';
 import axios from 'axios';
@@ -1767,172 +1768,300 @@ export default function LeanIndex({
                 {/* ERP CONTROLS BAR: SEARCH, DEPT, SORT, VIEW MODE, STATUS CHECKLIST */}
                 {viewMode !== 'analytics' && viewMode !== 'map' && (
                     <>
-                        <div className="space-y-2.5 mb-3">
-                    {/* Row 1: Search Bar Full Width */}
-                    <div className="relative w-full">
-                        <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder={isEn ? 'Search ID, title, reporter, location...' : 'Cari ID, judul, pelapor, lokasi...'}
-                            className={`w-full text-xs rounded-xl pl-8 pr-7 py-2.5 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 shadow-sm transition-all border liquid-glass-control ${
-                                isDark
-                                    ? 'text-slate-200 placeholder-slate-500'
-                                    : 'text-slate-900 placeholder-slate-400'
-                            }`}
-                        />
-                        {searchQuery && (
-                            <button
-                                type="button"
-                                onClick={() => setSearchQuery('')}
-                                className={`absolute right-2.5 top-1/2 -translate-y-1/2 p-1 ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-400 hover:text-slate-700'}`}
-                                title={isEn ? 'Clear search' : 'Hapus pencarian'}
-                            >
-                                <X className="w-3.5 h-3.5" />
-                            </button>
-                        )}
-                    </div>
+                        <div className="space-y-2 mb-3">
+                            {/* MOBILE ROW 1: MASTER SEARCH + ICON-ONLY VIEW SWITCHER & COLUMN CUSTOMIZER (ICON-FIRST) */}
+                            <div className="flex sm:hidden items-center gap-1.5">
+                                <div className="relative flex-1 min-w-0">
+                                    <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                                    <input
+                                        type="text"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        placeholder={isEn ? 'Search ticket...' : 'Cari tiket...'}
+                                        className={`w-full text-xs rounded-xl pl-8 pr-7 py-2 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 shadow-sm transition-all border liquid-glass-control ${
+                                            isDark
+                                                ? 'text-slate-200 placeholder-slate-500'
+                                                : 'text-slate-900 placeholder-slate-400'
+                                        }`}
+                                    />
+                                    {searchQuery && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSearchQuery('')}
+                                            className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-400 hover:text-slate-700'}`}
+                                            title={isEn ? 'Clear search' : 'Hapus pencarian'}
+                                        >
+                                            <X className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                </div>
 
-                    {/* Row 2: Balanced Grid on Mobile for Month, Dept, View Mode, Customizer & Sort; Flex on Desktop */}
-                    <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
-                        {/* 1. Month Tab Switcher (12 Tab Bulanan Google Sheet) */}
-                        <div className="w-full sm:w-auto order-1 sm:order-1">
-                            <select
-                                value={selectedMonthFilter}
-                                onChange={(e) => setSelectedMonthFilter(e.target.value)}
-                                className={`w-full sm:w-auto text-xs font-semibold rounded-xl px-3 py-2 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm border truncate liquid-glass-control ${
-                                    isDark
-                                        ? 'text-slate-200'
-                                        : 'text-slate-800'
-                                }`}
-                                title={isEn ? 'Select Month Tab (12 Monthly Tabs)' : 'Pilih Tab Bulan (12 Tab Bulanan)'}
-                            >
-                                <option value="all">{isEn ? '📅 All Months (All Tabs)' : '📅 Semua Bulan (Semua Tab)'}</option>
-                                <option value="1">{isEn ? 'January' : 'Januari'}</option>
-                                <option value="2">{isEn ? 'February' : 'Februari'}</option>
-                                <option value="3">{isEn ? 'March' : 'Maret'}</option>
-                                <option value="4">April</option>
-                                <option value="5">{isEn ? 'May' : 'Mei'}</option>
-                                <option value="6">{isEn ? 'June' : 'Juni'}</option>
-                                <option value="7">{isEn ? 'July' : 'Juli'}</option>
-                                <option value="8">{isEn ? 'August' : 'Agustus'}</option>
-                                <option value="9">September</option>
-                                <option value="10">{isEn ? 'October' : 'Oktober'}</option>
-                                <option value="11">November</option>
-                                <option value="12">{isEn ? 'December' : 'Desember'}</option>
-                            </select>
-                        </div>
-
-                        {/* 2. Department Filter */}
-                        <div className="w-full sm:w-auto order-2 sm:order-2">
-                            <select
-                                value={selectedDeptFilter}
-                                onChange={(e) => setSelectedDeptFilter(e.target.value)}
-                                className={`w-full sm:w-auto text-xs font-semibold rounded-xl px-3 py-2 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm border truncate liquid-glass-control ${
-                                    isDark
-                                        ? 'text-slate-200'
-                                        : 'text-slate-800'
-                                }`}
-                            >
-                                <option value="all">{isEn ? 'All Depts (All)' : 'Semua Dept (All)'}</option>
-                                {departments.map((dept) => (
-                                    <option key={dept} value={dept}>{formatDeptDisplay(dept)}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        {/* 3. View Switcher between Cards and Table inside Dashboard (Available on both Mobile & Desktop) */}
-                        <div className="w-full sm:w-auto order-3 sm:order-4 md:ml-auto">
-                            <div
-                                className={`w-full sm:w-auto h-9 flex items-center gap-0.5 p-1 rounded-xl border shadow-sm liquid-glass-subtle shrink-0 ${
-                                    isDark ? 'text-slate-300' : 'text-slate-700'
-                                }`}
-                                role="group"
-                                aria-label="Tampilan Kartu atau Tabel"
-                            >
+                                {/* Mobile Quick Icon: Switch Cards / Table */}
                                 <button
                                     type="button"
-                                    onClick={() => handleViewModeChange('cards')}
-                                    className={`flex-1 sm:flex-initial h-full px-2.5 py-1 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                    onClick={() => handleViewModeChange(viewMode === 'cards' ? 'table' : 'cards')}
+                                    className={`w-9 h-9 flex items-center justify-center rounded-xl border shadow-sm transition-all shrink-0 cursor-pointer liquid-glass-subtle ${
                                         viewMode === 'cards'
-                                            ? 'bg-emerald-600 text-white shadow-xs keep-white'
+                                            ? 'bg-emerald-600 text-white keep-white shadow-xs'
                                             : isDark
-                                            ? 'text-slate-400 hover:text-white'
-                                            : 'text-slate-600 hover:text-slate-900'
+                                            ? 'text-slate-300'
+                                            : 'text-slate-700'
                                     }`}
-                                    title={isEn ? 'Cards View' : 'Tampilan Kartu'}
+                                    title={viewMode === 'cards' ? (isEn ? 'Switch to Table' : 'Beralih ke Tabel') : (isEn ? 'Switch to Cards' : 'Beralih ke Kartu')}
+                                    aria-label="Toggle Mode Tampilan"
                                 >
-                                    <LayoutGrid className="w-3.5 h-3.5" />
-                                    <span>{isEn ? 'Cards' : 'Kartu'}</span>
+                                    {viewMode === 'cards' ? <LayoutGrid className="w-4 h-4" /> : <Table className="w-4 h-4" />}
                                 </button>
+
+                                {/* Mobile Quick Icon: Columns Customizer with Badge */}
                                 <button
                                     type="button"
-                                    onClick={() => handleViewModeChange('table')}
-                                    className={`flex-1 sm:flex-initial h-full px-2.5 py-1 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                                        viewMode === 'table'
-                                            ? 'bg-emerald-600 text-white shadow-xs keep-white'
-                                            : isDark
-                                            ? 'text-slate-400 hover:text-white'
-                                            : 'text-slate-600 hover:text-slate-900'
+                                    onClick={() => setShowColumnModal(true)}
+                                    className={`w-9 h-9 flex items-center justify-center rounded-xl border shadow-sm transition-all shrink-0 relative cursor-pointer liquid-glass-subtle ${
+                                        isDark ? 'text-slate-200' : 'text-slate-800'
                                     }`}
-                                    title={isEn ? 'ERP Spreadsheet Table View' : 'Tampilan Tabel ERP'}
+                                    title={isEn ? 'Choose columns' : 'Atur Tampilan Kolom'}
+                                    aria-label="Atur Kolom"
                                 >
-                                    <Table className="w-3.5 h-3.5" />
-                                    <span>{isEn ? 'Table' : 'Tabel'}</span>
+                                    <SlidersHorizontal className="w-4 h-4 text-emerald-500" />
+                                    <span className="absolute -top-1 -right-1 px-1 py-0.2 rounded-full bg-emerald-600 text-white font-bold text-[9px] shadow-xs leading-tight">
+                                        {activeColumnCount}
+                                    </span>
                                 </button>
                             </div>
-                        </div>
 
-                        {/* 4. Column Customizer Button */}
-                        <div className="w-full sm:w-auto order-4 sm:order-7">
-                            <button
-                                type="button"
-                                onClick={() => setShowColumnModal(true)}
-                                className={`w-full sm:w-auto h-9 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all shadow-sm border liquid-glass-subtle cursor-pointer ${
-                                    isDark
-                                        ? 'text-slate-200'
-                                        : 'text-slate-800'
-                                }`}
-                                title={isEn ? 'Choose which data/columns to display' : 'Pilih data/kolom apa saja yang ingin ditampilkan'}
-                            >
-                                <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-500" />
-                                <span>{isEn ? 'Columns' : 'Tampilan'}</span>
-                                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
-                                    isDark
-                                        ? 'bg-emerald-950 text-emerald-300 border-emerald-800/60'
-                                        : 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                }`}>
-                                    {activeColumnCount}/{columnDefs.length}
-                                </span>
-                            </button>
-                        </div>
+                            {/* MOBILE ROW 2: 3-COLUMN COMPACT STRIP (BULAN, DEPT, URUTKAN) */}
+                            <div className="grid grid-cols-3 sm:hidden gap-1.5">
+                                {/* 1. Month Tab */}
+                                <div className="relative flex items-center min-w-0">
+                                    <Calendar className="w-3 h-3 text-emerald-500 absolute left-2 pointer-events-none z-10 shrink-0" />
+                                    <select
+                                        value={selectedMonthFilter}
+                                        onChange={(e) => setSelectedMonthFilter(e.target.value)}
+                                        className={`w-full text-[11px] font-semibold rounded-xl pl-6 pr-2 py-1.5 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm border truncate liquid-glass-control ${
+                                            isDark ? 'text-slate-200' : 'text-slate-800'
+                                        }`}
+                                        title={isEn ? 'Select Month' : 'Pilih Bulan'}
+                                    >
+                                        <option value="all">{isEn ? 'All Months' : 'Semua Bulan'}</option>
+                                        <option value="1">{isEn ? 'Jan' : 'Januari'}</option>
+                                        <option value="2">{isEn ? 'Feb' : 'Februari'}</option>
+                                        <option value="3">{isEn ? 'Mar' : 'Maret'}</option>
+                                        <option value="4">April</option>
+                                        <option value="5">{isEn ? 'May' : 'Mei'}</option>
+                                        <option value="6">{isEn ? 'Jun' : 'Juni'}</option>
+                                        <option value="7">{isEn ? 'Jul' : 'Juli'}</option>
+                                        <option value="8">{isEn ? 'Aug' : 'Agustus'}</option>
+                                        <option value="9">September</option>
+                                        <option value="10">{isEn ? 'Oct' : 'Oktober'}</option>
+                                        <option value="11">November</option>
+                                        <option value="12">{isEn ? 'Dec' : 'Desember'}</option>
+                                    </select>
+                                </div>
 
-                        {/* 5. Sort Cepat Control */}
-                        <div className="col-span-2 sm:col-span-1 w-full sm:w-auto relative flex items-center order-5 sm:order-3">
-                            <ArrowUpDown className="w-3.5 h-3.5 text-emerald-500 absolute left-2.5 sm:left-3 pointer-events-none z-10" />
-                            <select
-                                value={sortBy}
-                                onChange={(e) => setSortBy(e.target.value)}
-                                className={`w-full sm:w-auto h-9 text-xs font-semibold rounded-xl pl-7 sm:pl-8 pr-3 py-2 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm border truncate liquid-glass-control ${
-                                    isDark
-                                        ? 'text-slate-200'
-                                        : 'text-slate-800'
-                                }`}
-                                title={isEn ? 'Quickly sort ticket list' : 'Urutkan daftar tiket secara cepat'}
-                            >
-                                <option value="newest">{isEn ? '🕒 Newest' : '🕒 Terbaru'}</option>
-                                <option value="oldest">{isEn ? '⏳ Oldest' : '⏳ Terlama'}</option>
-                                <option value="status">{isEn ? '📊 Progress Status' : '📊 Status Progres'}</option>
-                                <option value="eta_urgent">{isEn ? '⏰ Longest Without Update' : '⏰ Paling Lama Tanpa Update'}</option>
-                                <option value="open_first">{isEn ? '🔥 Open (Unclaimed)' : '🔥 Belum Ditangani (Open)'}</option>
-                            </select>
-                        </div>
+                                {/* 2. Department */}
+                                <div className="relative flex items-center min-w-0">
+                                    <Building2 className="w-3 h-3 text-emerald-500 absolute left-2 pointer-events-none z-10 shrink-0" />
+                                    <select
+                                        value={selectedDeptFilter}
+                                        onChange={(e) => setSelectedDeptFilter(e.target.value)}
+                                        className={`w-full text-[11px] font-semibold rounded-xl pl-6 pr-2 py-1.5 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm border truncate liquid-glass-control ${
+                                            isDark ? 'text-slate-200' : 'text-slate-800'
+                                        }`}
+                                        title={isEn ? 'Select Department' : 'Pilih Departemen'}
+                                    >
+                                        <option value="all">{isEn ? 'All Dept' : 'Semua Dept'}</option>
+                                        {departments.map((dept) => (
+                                            <option key={dept} value={dept}>{formatDeptDisplay(dept)}</option>
+                                        ))}
+                                    </select>
+                                </div>
 
-                        {/* 6. Desktop-Only Controls: Grid Density Switcher & Desktop New Report */}
-                        <div className="hidden md:flex items-center gap-2 order-6 sm:order-5">
-                            {/* Card Grid Density Switcher (Desktop, Cards View Only) */}
-                            {viewMode === 'cards' && (
+                                {/* 3. Sort */}
+                                <div className="relative flex items-center min-w-0">
+                                    <ArrowUpDown className="w-3 h-3 text-emerald-500 absolute left-2 pointer-events-none z-10 shrink-0" />
+                                    <select
+                                        value={sortBy}
+                                        onChange={(e) => setSortBy(e.target.value)}
+                                        className={`w-full text-[11px] font-semibold rounded-xl pl-6 pr-2 py-1.5 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm border truncate liquid-glass-control ${
+                                            isDark ? 'text-slate-200' : 'text-slate-800'
+                                        }`}
+                                        title={isEn ? 'Sort by' : 'Urutkan'}
+                                    >
+                                        <option value="newest">{isEn ? 'Newest' : 'Terbaru'}</option>
+                                        <option value="oldest">{isEn ? 'Oldest' : 'Terlama'}</option>
+                                        <option value="status">{isEn ? 'Status' : 'Status'}</option>
+                                        <option value="eta_urgent">{isEn ? 'Overdue' : 'Tanpa Update'}</option>
+                                        <option value="open_first">{isEn ? 'Open First' : 'Open Dulu'}</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* DESKTOP ROW 1: SEARCH BAR FULL WIDTH (SM AND UP) */}
+                            <div className="hidden sm:block relative w-full">
+                                <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder={isEn ? 'Search ID, title, reporter, location...' : 'Cari ID, judul, pelapor, lokasi...'}
+                                    className={`w-full text-xs rounded-xl pl-8 pr-7 py-2.5 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 shadow-sm transition-all border liquid-glass-control ${
+                                        isDark
+                                            ? 'text-slate-200 placeholder-slate-500'
+                                            : 'text-slate-900 placeholder-slate-400'
+                                    }`}
+                                />
+                                {searchQuery && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearchQuery('')}
+                                        className={`absolute right-2.5 top-1/2 -translate-y-1/2 p-1 ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-400 hover:text-slate-700'}`}
+                                        title={isEn ? 'Clear search' : 'Hapus pencarian'}
+                                    >
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* DESKTOP ROW 2: MONTH, DEPT, CARDS/TABLE, COLUMNS, SORT & DESKTOP TOOLS (SM AND UP) */}
+                            <div className="hidden sm:flex sm:flex-wrap items-center gap-2">
+                                {/* 1. Month Tab Switcher */}
+                                <div className="w-auto order-1">
+                                    <select
+                                        value={selectedMonthFilter}
+                                        onChange={(e) => setSelectedMonthFilter(e.target.value)}
+                                        className={`w-auto text-xs font-semibold rounded-xl px-3 py-2 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm border truncate liquid-glass-control ${
+                                            isDark
+                                                ? 'text-slate-200'
+                                                : 'text-slate-800'
+                                        }`}
+                                        title={isEn ? 'Select Month Tab (12 Monthly Tabs)' : 'Pilih Tab Bulan (12 Tab Bulanan)'}
+                                    >
+                                        <option value="all">{isEn ? '📅 All Months (All Tabs)' : '📅 Semua Bulan (Semua Tab)'}</option>
+                                        <option value="1">{isEn ? 'January' : 'Januari'}</option>
+                                        <option value="2">{isEn ? 'February' : 'Februari'}</option>
+                                        <option value="3">{isEn ? 'March' : 'Maret'}</option>
+                                        <option value="4">April</option>
+                                        <option value="5">{isEn ? 'May' : 'Mei'}</option>
+                                        <option value="6">{isEn ? 'June' : 'Juni'}</option>
+                                        <option value="7">{isEn ? 'July' : 'Juli'}</option>
+                                        <option value="8">{isEn ? 'August' : 'Agustus'}</option>
+                                        <option value="9">September</option>
+                                        <option value="10">{isEn ? 'October' : 'Oktober'}</option>
+                                        <option value="11">November</option>
+                                        <option value="12">{isEn ? 'December' : 'Desember'}</option>
+                                    </select>
+                                </div>
+
+                                {/* 2. Department Filter */}
+                                <div className="w-auto order-2">
+                                    <select
+                                        value={selectedDeptFilter}
+                                        onChange={(e) => setSelectedDeptFilter(e.target.value)}
+                                        className={`w-auto text-xs font-semibold rounded-xl px-3 py-2 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm border truncate liquid-glass-control ${
+                                            isDark
+                                                ? 'text-slate-200'
+                                                : 'text-slate-800'
+                                        }`}
+                                    >
+                                        <option value="all">{isEn ? 'All Depts (All)' : 'Semua Dept (All)'}</option>
+                                        {departments.map((dept) => (
+                                            <option key={dept} value={dept}>{formatDeptDisplay(dept)}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* 3. View Switcher between Cards and Table inside Dashboard */}
+                                <div className="w-auto order-4 md:ml-auto">
+                                    <div
+                                        className={`w-auto h-9 flex items-center gap-0.5 p-1 rounded-xl border shadow-sm liquid-glass-subtle shrink-0 ${
+                                            isDark ? 'text-slate-300' : 'text-slate-700'
+                                        }`}
+                                        role="group"
+                                        aria-label="Tampilan Kartu atau Tabel"
+                                    >
+                                        <button
+                                            type="button"
+                                            onClick={() => handleViewModeChange('cards')}
+                                            className={`h-full px-2.5 py-1 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                                viewMode === 'cards'
+                                                    ? 'bg-emerald-600 text-white shadow-xs keep-white'
+                                                    : isDark
+                                                    ? 'text-slate-400 hover:text-white'
+                                                    : 'text-slate-600 hover:text-slate-900'
+                                            }`}
+                                            title={isEn ? 'Cards View' : 'Tampilan Kartu'}
+                                        >
+                                            <LayoutGrid className="w-3.5 h-3.5" />
+                                            <span>{isEn ? 'Cards' : 'Kartu'}</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleViewModeChange('table')}
+                                            className={`h-full px-2.5 py-1 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                                viewMode === 'table'
+                                                    ? 'bg-emerald-600 text-white shadow-xs keep-white'
+                                                    : isDark
+                                                    ? 'text-slate-400 hover:text-white'
+                                                    : 'text-slate-600 hover:text-slate-900'
+                                            }`}
+                                            title={isEn ? 'ERP Spreadsheet Table View' : 'Tampilan Tabel ERP'}
+                                        >
+                                            <Table className="w-3.5 h-3.5" />
+                                            <span>{isEn ? 'Table' : 'Tabel'}</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* 4. Column Customizer Button */}
+                                <div className="w-auto order-7">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowColumnModal(true)}
+                                        className={`w-auto h-9 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all shadow-sm border liquid-glass-subtle cursor-pointer ${
+                                            isDark
+                                                ? 'text-slate-200'
+                                                : 'text-slate-800'
+                                        }`}
+                                        title={isEn ? 'Choose which data/columns to display' : 'Pilih data/kolom apa saja yang ingin ditampilkan'}
+                                    >
+                                        <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-500" />
+                                        <span>{isEn ? 'Columns' : 'Tampilan'}</span>
+                                        <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
+                                            isDark
+                                                ? 'bg-emerald-950 text-emerald-300 border-emerald-800/60'
+                                                : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                        }`}>
+                                            {activeColumnCount}/{columnDefs.length}
+                                        </span>
+                                    </button>
+                                </div>
+
+                                {/* 5. Sort Cepat Control */}
+                                <div className="w-auto relative flex items-center order-3">
+                                    <ArrowUpDown className="w-3.5 h-3.5 text-emerald-500 absolute left-3 pointer-events-none z-10" />
+                                    <select
+                                        value={sortBy}
+                                        onChange={(e) => setSortBy(e.target.value)}
+                                        className={`w-auto h-9 text-xs font-semibold rounded-xl pl-8 pr-3 py-2 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm border truncate liquid-glass-control ${
+                                            isDark
+                                                ? 'text-slate-200'
+                                                : 'text-slate-800'
+                                        }`}
+                                        title={isEn ? 'Quickly sort ticket list' : 'Urutkan daftar tiket secara cepat'}
+                                    >
+                                        <option value="newest">{isEn ? '🕒 Newest' : '🕒 Terbaru'}</option>
+                                        <option value="oldest">{isEn ? '⏳ Oldest' : '⏳ Terlama'}</option>
+                                        <option value="status">{isEn ? '📊 Progress Status' : '📊 Status Progres'}</option>
+                                        <option value="eta_urgent">{isEn ? '⏰ Longest Without Update' : '⏰ Paling Lama Tanpa Update'}</option>
+                                        <option value="open_first">{isEn ? '🔥 Open (Unclaimed)' : '🔥 Belum Ditangani (Open)'}</option>
+                                    </select>
+                                </div>
+
+                                {/* 6. Desktop-Only Controls: Grid Density Switcher & Desktop New Report */}
+                                <div className="hidden md:flex items-center gap-2 order-5">
+                                    {/* Card Grid Density Switcher (Desktop, Cards View Only) */}
+                                    {viewMode === 'cards' && (
                                 <div
                                     className={`inline-flex items-center gap-0.5 p-1 rounded-xl border shadow-sm liquid-glass-subtle shrink-0 ${
                                         isDark ? 'text-slate-300' : 'text-slate-700'
@@ -1985,14 +2114,14 @@ export default function LeanIndex({
                 </div>
 
                 {/* Row 3: MULTI-SELECT STATUS CHECKLIST PILLS & PRESETS */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-4 p-2 sm:p-2.5 rounded-2xl border transition-all liquid-glass-subtle">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2.5 mb-3 p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl border transition-all liquid-glass-subtle">
                     {/* Status Checklist Pills: 4-Column Grid on Mobile (Non-scrollable, fits 100% width), Flex on Desktop */}
                     <div className="grid grid-cols-4 gap-1 sm:flex sm:items-center sm:gap-1.5 w-full sm:w-auto">
                         {/* Open Checkbox Pill */}
                         <button
                             type="button"
                             onClick={() => toggleStatus('open')}
-                            className={`flex items-center justify-center sm:justify-start gap-1 sm:gap-1.5 px-1 py-1.5 sm:px-2.5 sm:py-1 rounded-lg font-semibold text-[11px] sm:text-xs transition-all border ${
+                            className={`flex items-center justify-center sm:justify-start gap-1 sm:gap-1.5 px-1 py-1 sm:px-2.5 sm:py-1 rounded-lg font-semibold text-[10px] sm:text-xs transition-all border ${
                                 selectedStatuses.open
                                     ? isDark
                                         ? 'bg-rose-950/80 border-rose-500/60 text-rose-300 shadow-sm'
@@ -2002,8 +2131,8 @@ export default function LeanIndex({
                                     : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-xs'
                             }`}
                         >
-                            <span className={`w-3 h-3 sm:w-3.5 sm:h-3.5 rounded flex items-center justify-center text-[9px] sm:text-[10px] border shrink-0 ${
-                                selectedStatuses.open ? 'bg-rose-500 border-rose-400 text-white' : (isDark ? 'border-slate-600' : 'border-slate-300')
+                            <span className={`w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded flex items-center justify-center text-[8px] sm:text-[10px] border shrink-0 ${
+                                selectedStatuses.open ? 'bg-rose-500 border-rose-400 text-white font-bold' : (isDark ? 'border-slate-600' : 'border-slate-300')
                             }`}>
                                 {selectedStatuses.open && '✓'}
                             </span>
@@ -2019,7 +2148,7 @@ export default function LeanIndex({
                         <button
                             type="button"
                             onClick={() => toggleStatus('in_progress')}
-                            className={`flex items-center justify-center sm:justify-start gap-1 sm:gap-1.5 px-1 py-1.5 sm:px-2.5 sm:py-1 rounded-lg font-semibold text-[11px] sm:text-xs transition-all border ${
+                            className={`flex items-center justify-center sm:justify-start gap-1 sm:gap-1.5 px-1 py-1 sm:px-2.5 sm:py-1 rounded-lg font-semibold text-[10px] sm:text-xs transition-all border ${
                                 selectedStatuses.in_progress
                                     ? isDark
                                         ? 'bg-amber-950/80 border-amber-500/60 text-amber-300 shadow-sm'
@@ -2029,8 +2158,8 @@ export default function LeanIndex({
                                     : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-xs'
                             }`}
                         >
-                            <span className={`w-3 h-3 sm:w-3.5 sm:h-3.5 rounded flex items-center justify-center text-[9px] sm:text-[10px] border shrink-0 ${
-                                selectedStatuses.in_progress ? 'bg-amber-500 border-amber-400 text-white' : (isDark ? 'border-slate-600' : 'border-slate-300')
+                            <span className={`w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded flex items-center justify-center text-[8px] sm:text-[10px] border shrink-0 ${
+                                selectedStatuses.in_progress ? 'bg-amber-500 border-amber-400 text-white font-bold' : (isDark ? 'border-slate-600' : 'border-slate-300')
                             }`}>
                                 {selectedStatuses.in_progress && '✓'}
                             </span>
@@ -2047,7 +2176,7 @@ export default function LeanIndex({
                         <button
                             type="button"
                             onClick={() => toggleStatus('pending')}
-                            className={`flex items-center justify-center sm:justify-start gap-1 sm:gap-1.5 px-1 py-1.5 sm:px-2.5 sm:py-1 rounded-lg font-semibold text-[11px] sm:text-xs transition-all border ${
+                            className={`flex items-center justify-center sm:justify-start gap-1 sm:gap-1.5 px-1 py-1 sm:px-2.5 sm:py-1 rounded-lg font-semibold text-[10px] sm:text-xs transition-all border ${
                                 selectedStatuses.pending
                                     ? isDark
                                         ? 'bg-orange-950/80 border-orange-500/60 text-orange-300 shadow-sm'
@@ -2057,8 +2186,8 @@ export default function LeanIndex({
                                     : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-xs'
                             }`}
                         >
-                            <span className={`w-3 h-3 sm:w-3.5 sm:h-3.5 rounded flex items-center justify-center text-[9px] sm:text-[10px] border shrink-0 ${
-                                selectedStatuses.pending ? 'bg-orange-500 border-orange-400 text-white' : (isDark ? 'border-slate-600' : 'border-slate-300')
+                            <span className={`w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded flex items-center justify-center text-[8px] sm:text-[10px] border shrink-0 ${
+                                selectedStatuses.pending ? 'bg-orange-500 border-orange-400 text-white font-bold' : (isDark ? 'border-slate-600' : 'border-slate-300')
                             }`}>
                                 {selectedStatuses.pending && '✓'}
                             </span>
@@ -2075,7 +2204,7 @@ export default function LeanIndex({
                         <button
                             type="button"
                             onClick={() => toggleStatus('resolved')}
-                            className={`flex items-center justify-center sm:justify-start gap-1 sm:gap-1.5 px-1 py-1.5 sm:px-2.5 sm:py-1 rounded-lg font-semibold text-[11px] sm:text-xs transition-all border ${
+                            className={`flex items-center justify-center sm:justify-start gap-1 sm:gap-1.5 px-1 py-1 sm:px-2.5 sm:py-1 rounded-lg font-semibold text-[10px] sm:text-xs transition-all border ${
                                 selectedStatuses.resolved
                                     ? isDark
                                         ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300 shadow-sm'
@@ -2085,8 +2214,8 @@ export default function LeanIndex({
                                     : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-xs'
                             }`}
                         >
-                            <span className={`w-3 h-3 sm:w-3.5 sm:h-3.5 rounded flex items-center justify-center text-[9px] sm:text-[10px] border shrink-0 ${
-                                selectedStatuses.resolved ? 'bg-emerald-500 border-emerald-400 text-white' : (isDark ? 'border-slate-600' : 'border-slate-300')
+                            <span className={`w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded flex items-center justify-center text-[8px] sm:text-[10px] border shrink-0 ${
+                                selectedStatuses.resolved ? 'bg-emerald-500 border-emerald-400 text-white font-bold' : (isDark ? 'border-slate-600' : 'border-slate-300')
                             }`}>
                                 {selectedStatuses.resolved && '✓'}
                             </span>
@@ -2100,13 +2229,13 @@ export default function LeanIndex({
                     </div>
 
                     {/* Quick Presets: 3-column grid on mobile, inline on desktop */}
-                    <div className="grid grid-cols-3 sm:flex items-center gap-1.5 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-700/40 sm:border-transparent w-full sm:w-auto">
+                    <div className="grid grid-cols-3 sm:flex items-center gap-1 sm:gap-1.5 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-700/30 sm:border-transparent w-full sm:w-auto">
                         <button
                             type="button"
                             onClick={() => setStatusPreset('all')}
-                            className={`px-2 py-1 sm:py-0.5 rounded-md border text-center text-[11px] sm:text-xs font-medium transition-all ${
+                            className={`px-1.5 py-1 sm:py-0.5 rounded-lg border text-center text-[10px] sm:text-xs font-medium transition-all ${
                                 isDark
-                                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
+                                    ? 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
                                     : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border-slate-300 shadow-xs'
                             }`}
                         >
@@ -2115,24 +2244,24 @@ export default function LeanIndex({
                         <button
                             type="button"
                             onClick={() => setStatusPreset('active')}
-                            className={`px-2 py-1 sm:py-0.5 rounded-md border text-center text-[11px] sm:text-xs font-semibold transition-all ${
+                            className={`px-1.5 py-1 sm:py-0.5 rounded-lg border text-center text-[10px] sm:text-xs font-semibold transition-all ${
                                 isDark
-                                    ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border-slate-700'
+                                    ? 'bg-slate-800/80 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border-slate-700'
                                     : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 shadow-xs'
                             }`}
                         >
-                            {isEn ? 'Active Issues' : 'Isu Aktif'}
+                            {isEn ? 'Active' : 'Isu Aktif'}
                         </button>
                         <button
                             type="button"
                             onClick={() => setStatusPreset('resolved')}
-                            className={`px-2 py-1 sm:py-0.5 rounded-md border text-center text-[11px] sm:text-xs font-semibold transition-all ${
+                            className={`px-1.5 py-1 sm:py-0.5 rounded-lg border text-center text-[10px] sm:text-xs font-semibold transition-all ${
                                 isDark
-                                    ? 'bg-slate-800 hover:bg-slate-700 text-emerald-300 hover:text-emerald-200 border-slate-700'
+                                    ? 'bg-slate-800/80 hover:bg-slate-700 text-emerald-300 hover:text-emerald-200 border-slate-700'
                                     : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 shadow-xs'
                             }`}
                         >
-                            {isEn ? 'Resolved Only' : 'Selesai Saja'}
+                            {isEn ? 'Resolved' : 'Selesai Saja'}
                         </button>
                     </div>
                 </div>
