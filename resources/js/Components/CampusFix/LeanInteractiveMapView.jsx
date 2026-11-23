@@ -24,6 +24,7 @@ import {
     HelpCircle,
     Filter,
     SlidersHorizontal,
+    Lock,
 } from 'lucide-react';
 import axios from 'axios';
 import { router } from '@inertiajs/react';
@@ -82,6 +83,19 @@ export default function LeanInteractiveMapView({
     // Department & Admin helpers
     const userDept = currentUser?.department || '';
     const isAdmin = currentUser?.is_admin || (currentUser?.role && currentUser.role.toLowerCase() === 'admin');
+
+    // Check if current user is authorized to place/update pin for this issue
+    const canManageIssuePin = useCallback((iss) => {
+        if (!iss) return false;
+        if (isAdmin) return true;
+        if (!userDept) return false;
+        const targets = Array.isArray(iss.target_departments)
+            ? iss.target_departments
+            : (iss.department ? [iss.department] : []);
+        const matchesTarget = targets.some((d) => d && d.toLowerCase() === userDept.toLowerCase());
+        const matchesReporter = iss.reporter_dept && iss.reporter_dept.toLowerCase() === userDept.toLowerCase();
+        return Boolean(matchesTarget || matchesReporter);
+    }, [isAdmin, userDept]);
 
     // Unique departments
     const departmentsList = useMemo(() => {
@@ -340,6 +354,17 @@ export default function LeanInteractiveMapView({
         const x = targetX !== undefined ? targetX : activeSelection?.x;
         const y = targetY !== undefined ? targetY : activeSelection?.y;
         if (x === undefined || y === undefined) return;
+
+        const targetIssue = issues.find((i) => i.id === issueId);
+        if (targetIssue && !canManageIssuePin(targetIssue)) {
+            showToast(
+                isEn
+                    ? 'You do not have permission to map issues from other departments.'
+                    : 'Anda tidak memiliki hak akses untuk memetakan tiket departemen lain.',
+                'error'
+            );
+            return;
+        }
 
         setIsPinningLoading(true);
 
@@ -1319,15 +1344,33 @@ export default function LeanInteractiveMapView({
                                                                     📍 {iss.location}
                                                                 </p>
                                                             </div>
-                                                            <button
-                                                                type="button"
-                                                                disabled={isPinningLoading}
-                                                                onClick={() => handleAttachIssue(iss.id)}
-                                                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] transition-colors shrink-0 disabled:opacity-50 cursor-pointer shadow-2xs"
-                                                            >
-                                                                <LinkIcon className="w-3 h-3" />
-                                                                <span>{isEn ? 'Link' : 'Tautkan'}</span>
-                                                            </button>
+                                                            {canManageIssuePin(iss) ? (
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={isPinningLoading}
+                                                                    onClick={() => handleAttachIssue(iss.id)}
+                                                                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] transition-colors shrink-0 disabled:opacity-50 cursor-pointer shadow-2xs"
+                                                                >
+                                                                    <LinkIcon className="w-3 h-3" />
+                                                                    <span>{isEn ? 'Link' : 'Tautkan'}</span>
+                                                                </button>
+                                                            ) : (
+                                                                <div
+                                                                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-bold text-[11px] shrink-0 border cursor-not-allowed select-none ${
+                                                                        isDark
+                                                                            ? 'bg-slate-900 border-slate-800 text-slate-500'
+                                                                            : 'bg-slate-200 border-slate-300 text-slate-500'
+                                                                    }`}
+                                                                    title={
+                                                                        isEn
+                                                                            ? `Only ${iss.target_departments?.join(', ') || iss.department || 'the assigned'} department or Admin can map this ticket.`
+                                                                            : `Hanya departemen ${iss.target_departments?.join(', ') || iss.department || 'terkait'} atau Admin yang dapat memetakan tiket ini.`
+                                                                    }
+                                                                >
+                                                                    <Lock className="w-3 h-3 text-slate-400" />
+                                                                    <span>{isEn ? 'Locked' : 'Dept Lain'}</span>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     ))
                                                 )}
@@ -1491,37 +1534,55 @@ export default function LeanInteractiveMapView({
                                                                 {isEn ? 'View Detail' : 'Lihat Detail'}
                                                             </button>
 
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    if (pendingIssueToPin?.id === iss.id) {
-                                                                        setPendingIssueToPin(null);
-                                                                    } else {
-                                                                        setPendingIssueToPin(iss);
-                                                                        setInteractionMode('pin');
-                                                                        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-                                                                            setShowSidebar(false);
+                                                            {canManageIssuePin(iss) ? (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (pendingIssueToPin?.id === iss.id) {
+                                                                            setPendingIssueToPin(null);
+                                                                        } else {
+                                                                            setPendingIssueToPin(iss);
+                                                                            setInteractionMode('pin');
+                                                                            if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                                                                                setShowSidebar(false);
+                                                                            }
+                                                                            showToast(
+                                                                                isEn
+                                                                                    ? `Now click anywhere on the map to place #${iss.issue_code || iss.id}!`
+                                                                                    : `Klik di mana saja pada denah untuk menempatkan pin #${iss.issue_code || iss.id}!`
+                                                                            );
                                                                         }
-                                                                        showToast(
-                                                                            isEn
-                                                                                ? `Now click anywhere on the map to place #${iss.issue_code || iss.id}!`
-                                                                                : `Klik di mana saja pada denah untuk menempatkan pin #${iss.issue_code || iss.id}!`
-                                                                        );
+                                                                    }}
+                                                                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                                                                        pendingIssueToPin?.id === iss.id
+                                                                            ? 'bg-rose-500 text-white'
+                                                                            : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-xs'
+                                                                    }`}
+                                                                >
+                                                                    <MapPin className="w-3 h-3" />
+                                                                    <span>
+                                                                        {pendingIssueToPin?.id === iss.id
+                                                                            ? isEn ? 'Cancel' : 'Batal'
+                                                                            : isEn ? 'Drop Pin' : 'Taruh Pin'}
+                                                                    </span>
+                                                                </button>
+                                                            ) : (
+                                                                <div
+                                                                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border cursor-not-allowed select-none ${
+                                                                        isDark
+                                                                            ? 'bg-slate-900 border-slate-800 text-slate-500'
+                                                                            : 'bg-slate-200 border-slate-300 text-slate-500'
+                                                                    }`}
+                                                                    title={
+                                                                        isEn
+                                                                            ? `Only ${iss.target_departments?.join(', ') || iss.department || 'the assigned'} department or Admin can place a pin for this ticket.`
+                                                                            : `Hanya departemen ${iss.target_departments?.join(', ') || iss.department || 'terkait'} atau Admin yang dapat menaruh pin tiket ini.`
                                                                     }
-                                                                }}
-                                                                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                                                                    pendingIssueToPin?.id === iss.id
-                                                                        ? 'bg-rose-500 text-white'
-                                                                        : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-xs'
-                                                                }`}
-                                                            >
-                                                                <MapPin className="w-3 h-3" />
-                                                                <span>
-                                                                    {pendingIssueToPin?.id === iss.id
-                                                                        ? isEn ? 'Cancel' : 'Batal'
-                                                                        : isEn ? 'Drop Pin' : 'Taruh Pin'}
-                                                                </span>
-                                                            </button>
+                                                                >
+                                                                    <Lock className="w-3.5 h-3.5 text-slate-400" />
+                                                                    <span>{isEn ? 'Locked' : 'Dept Lain'}</span>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 ))
