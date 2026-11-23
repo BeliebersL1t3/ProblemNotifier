@@ -154,6 +154,14 @@ class AuthenticatedSessionController extends Controller
         $user = $request->validateCredentialsWithoutLogin();
         $remember = $request->boolean('remember');
 
+        // Security Zero-Knowledge Gate: Admin accounts cannot log in through the regular user portal.
+        // Returning standard credential failure prevents user enumeration and forces admins to the secret portal.
+        if ($user->isAdmin()) {
+            throw ValidationException::withMessages([
+                'email' => trans('auth.failed'),
+            ]);
+        }
+
         $otpEnabled = filter_var(config('telunas.login_otp_enabled', true), FILTER_VALIDATE_BOOLEAN);
         if (!$otpEnabled) {
             Auth::login($user, $remember);
@@ -229,19 +237,11 @@ class AuthenticatedSessionController extends Controller
         }
 
         $cleanDigits = preg_replace('/[^0-9]/', '', (string) ($user->whatsapp_number ?? ''));
-        $requireWhatsapp = filter_var(config('telunas.login_otp_require_whatsapp', false), FILTER_VALIDATE_BOOLEAN);
 
         if ($cleanDigits === '') {
-            if ($requireWhatsapp) {
-                throw ValidationException::withMessages([
-                    'email' => __('telunas.otp_whatsapp_missing'),
-                ]);
-            }
-
-            Auth::login($user, $remember);
-            $request->session()->regenerate();
-
-            return redirect()->intended(route('lean.index', absolute: false));
+            throw ValidationException::withMessages([
+                'email' => 'Akun Administrator wajib memiliki nomor WhatsApp terdaftar untuk verifikasi OTP login. Silakan hubungi tim IT.',
+            ]);
         }
 
         if (!TicketNotificationService::isValidIndonesianMobile($cleanDigits)) {

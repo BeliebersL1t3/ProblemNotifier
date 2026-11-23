@@ -74,6 +74,25 @@ class AuthenticationTest extends TestCase
         $response->assertSessionHasErrors('email');
     }
 
+    public function test_admin_account_cannot_login_through_regular_login_portal(): void
+    {
+        $admin = User::factory()->create([
+            'role'            => 'admin',
+            'whatsapp_number' => '08113861133',
+            'is_active'       => true,
+            'approval_status' => 'approved',
+        ]);
+
+        $response = $this->from('/login')->post('/login', [
+            'email'    => $admin->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertGuest();
+        $response->assertRedirect('/login');
+        $response->assertSessionHasErrors('email');
+    }
+
     public function test_email_only_user_without_whatsapp_can_authenticate_during_transitional_phase(): void
     {
         $user = User::factory()->create([
