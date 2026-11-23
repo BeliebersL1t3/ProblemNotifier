@@ -30,6 +30,8 @@ export default function Login({
     canRegister = false,
     canRecoverBot = false,
     botRecoveryState = null,
+    botRecoveryRawStatus = null,
+    botRecoveryMessage = null,
     botRecoveryExpiresAt = 0,
     serverNow = 0,
     devDebugAuthEnabled = false,
@@ -50,6 +52,8 @@ export default function Login({
 
     const [botStarting, setBotStarting] = useState(false);
     const [botPolling, setBotPolling] = useState(false);
+    const [cooldownSeconds, setCooldownSeconds] = useState(0);
+    const [currentRawStatus, setCurrentRawStatus] = useState(() => botRecoveryRawStatus || null);
     const [recoveryPhase, setRecoveryPhase] = useState(() =>
         canRecoverBot && botRecoveryState === 'needs_pairing' ? 'needs_pairing' : 'idle'
     );
@@ -85,6 +89,14 @@ export default function Login({
     }, []);
 
     useEffect(() => {
+        if (cooldownSeconds <= 0) return;
+        const timer = setInterval(() => {
+            setCooldownSeconds((prev) => (prev > 1 ? prev - 1 : 0));
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [cooldownSeconds]);
+
+    useEffect(() => {
         const syncedServerTs = Number(serverNow) || Math.floor(Date.now() / 1000);
         const clientTs = Math.floor(Date.now() / 1000);
         setClockAnchor({ clientTs, serverTs: syncedServerTs });
@@ -93,16 +105,19 @@ export default function Login({
         if (!canRecoverBot) {
             stopPolling();
             setRecoveryPhase('idle');
+            setCurrentRawStatus(null);
             setRecoveryMessage(null);
         } else if (botRecoveryState === 'needs_pairing') {
             setRecoveryPhase('needs_pairing');
+            setCurrentRawStatus(botRecoveryRawStatus || 'needs_pairing');
             setRecoveryMessage(
-                isEn
+                botRecoveryMessage ||
+                (isEn
                     ? 'The bot is running, but its WhatsApp session is disconnected or unpaired. Restore via server CLI (node bot-v2.js) or set LOGIN_OTP_ENABLED=false in .env for emergency recovery.'
-                    : 'Bot menyala namun sesi WhatsApp terputus atau belum ter-pair. Pulihkan sesi via CLI server (node bot-v2.js) atau ubah LOGIN_OTP_ENABLED=false di .env untuk pemulihan darurat.'
+                    : 'Bot menyala namun sesi WhatsApp terputus atau belum ter-pair. Pulihkan sesi via CLI server (node bot-v2.js) atau ubah LOGIN_OTP_ENABLED=false di .env untuk pemulihan darurat.')
             );
         }
-    }, [canRecoverBot, botRecoveryState, botRecoveryExpiresAt, serverNow, stopPolling, isEn]);
+    }, [canRecoverBot, botRecoveryState, botRecoveryRawStatus, botRecoveryMessage, botRecoveryExpiresAt, serverNow, stopPolling, isEn]);
 
     useEffect(() => {
         if (!canRecoverBot || !botRecoveryExpiresAt) {
@@ -134,6 +149,7 @@ export default function Login({
             if (payload.status === 'otp_sent' && payload.redirect) {
                 stopPolling();
                 setRecoveryPhase('otp_sent');
+                setCurrentRawStatus('connected');
                 setRecoveryMessage(
                     payload.message ||
                         (enNow
@@ -147,11 +163,13 @@ export default function Login({
             if (payload.status === 'needs_pairing') {
                 stopPolling();
                 setRecoveryPhase('needs_pairing');
+                setCurrentRawStatus(payload.raw_status || 'needs_pairing');
                 setRecoveryMessage(payload.message);
                 return;
             }
 
             setRecoveryPhase('booting');
+            setCurrentRawStatus(payload.raw_status || 'booting');
             setRecoveryMessage(
                 payload.message ||
                     (enNow
@@ -218,13 +236,15 @@ export default function Login({
     }, [stopPolling]);
 
     const handleActivateBot = async () => {
-        if (botStarting || botPolling || !isRecoveryActive) {
+        if (botStarting || botPolling || cooldownSeconds > 0 || !isRecoveryActive) {
             return;
         }
 
         stopPolling();
         setBotStarting(true);
+        setCooldownSeconds(15);
         setRecoveryPhase('booting');
+        setCurrentRawStatus('booting');
         setRecoveryMessage(
             isEn
                 ? 'Sending command to start the WhatsApp Bot...'
@@ -238,6 +258,7 @@ export default function Login({
             const payload = res.data || {};
             if (payload.status === 'otp_sent' && payload.redirect) {
                 setRecoveryPhase('otp_sent');
+                setCurrentRawStatus('connected');
                 setRecoveryMessage(
                     payload.message ||
                         (isEn
@@ -250,12 +271,14 @@ export default function Login({
 
             if (payload.status === 'needs_pairing') {
                 setRecoveryPhase('needs_pairing');
+                setCurrentRawStatus(payload.raw_status || 'needs_pairing');
                 setRecoveryMessage(payload.message);
                 return;
             }
 
             setBotPolling(true);
             setRecoveryPhase('booting');
+            setCurrentRawStatus(payload.raw_status || 'booting');
             setRecoveryMessage(
                 payload.message ||
                     (isEn
@@ -271,6 +294,18 @@ export default function Login({
 
             const httpStatus = err.response?.status;
             const errMsg = err.response?.data?.message;
+
+            if (httpStatus === 429) {
+                setCooldownSeconds(60);
+                setRecoveryPhase('error');
+                setCurrentRawStatus('rate_limited');
+                setRecoveryMessage(
+                    isEn
+                        ? 'Too many activation attempts. The button is locked for 60 seconds to avoid server overload.'
+                        : 'Terlalu banyak permintaan menyalakan bot. Tombol dikunci sementara selama 60 detik agar server tidak terbebani.'
+                );
+                return;
+            }
 
             if (httpStatus === 403 || httpStatus === 419) {
                 setRecoveryPhase('expired');
@@ -330,7 +365,7 @@ export default function Login({
         )
     );
 
-    const botBusy = botStarting || botPolling;
+    const botBusy = botStarting || botPolling || cooldownSeconds > 0;
     const leftRecoveryButton = (isAdminPortal && isRecoveryActive) ? (
         <button
             type="button"
@@ -355,7 +390,9 @@ export default function Login({
                 <Power className="h-3.5 w-3.5" />
             )}
             <span>
-                {botStarting
+                {cooldownSeconds > 0
+                    ? (isEn ? `Wait ${cooldownSeconds}s...` : `Tunggu ${cooldownSeconds}d...`)
+                    : botStarting
                     ? (isEn ? 'Starting Bot...' : 'Menyalakan Bot...')
                     : botPolling
                     ? (isEn ? 'Connecting WA...' : 'Menghubungkan WA...')
@@ -656,11 +693,13 @@ export default function Login({
 
             {isAdminPortal && recoveryMessage && recoveryPhase !== 'idle' && (
                 <div
-                    className={`mb-4 rounded-lg border p-3 text-xs flex items-start gap-2 ${
+                    className={`mb-4 rounded-xl border p-3.5 text-xs flex items-start gap-2.5 shadow-sm transition-all ${
                         recoveryPhase === 'otp_sent'
                             ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
                             : recoveryPhase === 'booting'
                             ? 'bg-indigo-50 border-indigo-200 text-indigo-800'
+                            : currentRawStatus === 'logged_out'
+                            ? 'bg-rose-50 border-rose-200 text-rose-900'
                             : 'bg-amber-50 border-amber-200 text-amber-900'
                     }`}
                 >
@@ -669,17 +708,55 @@ export default function Login({
                     ) : recoveryPhase === 'booting' ? (
                         <Loader2 className="h-4 w-4 shrink-0 animate-spin text-indigo-600 mt-0.5" />
                     ) : (
-                        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                        <AlertTriangle className={`h-4 w-4 shrink-0 mt-0.5 ${currentRawStatus === 'logged_out' ? 'text-rose-600' : 'text-amber-600'}`} />
                     )}
-                    <div>
-                        <p className="font-semibold">
-                            {recoveryPhase === 'booting'
-                                ? (isEn ? 'Admin Bot Recovery' : 'Pemulihan Bot Admin')
-                                : recoveryPhase === 'otp_sent'
-                                ? (isEn ? 'Bot Active' : 'Bot Aktif')
-                                : (isEn ? 'WhatsApp Bot Status' : 'Status Bot WhatsApp')}
-                        </p>
+                    <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                            <span className="font-semibold text-[13px]">
+                                {recoveryPhase === 'booting'
+                                    ? (isEn ? 'Admin Bot Recovery' : 'Pemulihan Bot Admin')
+                                    : recoveryPhase === 'otp_sent'
+                                    ? (isEn ? 'Bot Active' : 'Bot Aktif')
+                                    : (isEn ? 'WhatsApp Bot Status' : 'Status Bot WhatsApp')}
+                            </span>
+                            {currentRawStatus === 'logged_out' && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-200/90 text-rose-800 border border-rose-300">
+                                    {isEn ? 'Session Logged Out (401)' : 'Sesi Terputus / Logged Out (401)'}
+                                </span>
+                            )}
+                            {currentRawStatus === 'qr_ready' && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-200/90 text-amber-800 border border-amber-300">
+                                    {isEn ? 'Scan QR Required' : 'Menunggu Scan QR Code'}
+                                </span>
+                            )}
+                            {currentRawStatus === 'pairing_ready' && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-200/90 text-blue-800 border border-blue-300">
+                                    {isEn ? 'Pairing Code Waiting' : 'Menunggu Kode Pairing'}
+                                </span>
+                            )}
+                            {currentRawStatus === 'offline' && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-700 border border-slate-300">
+                                    {isEn ? 'Bot Offline' : 'Bot Offline'}
+                                </span>
+                            )}
+                            {cooldownSeconds > 0 && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-200/80 text-amber-900 border border-amber-300">
+                                    {isEn ? `Cooldown: ${cooldownSeconds}s` : `Jeda: ${cooldownSeconds}d`}
+                                </span>
+                            )}
+                        </div>
                         <p className="mt-0.5 leading-relaxed">{recoveryMessage}</p>
+
+                        {(currentRawStatus === 'logged_out' || currentRawStatus === 'qr_ready') && (
+                            <div className="mt-2.5 pt-2 border-t border-rose-200/70 text-[11px] space-y-1 text-rose-800">
+                                <p className="font-semibold text-rose-900">{isEn ? 'Options to proceed:' : 'Opsi untuk melanjutkan:'}</p>
+                                <p>1. {isEn ? 'Pair WhatsApp again: open terminal ' : 'Tautkan WhatsApp: buka terminal '}<code>node bot-v2.js</code> {isEn ? 'and scan QR code via WhatsApp > Linked Devices.' : 'dan scan QR di menu Perangkat Tertaut WA.'}</p>
+                                {devDebugAuthEnabled && (
+                                    <p>2. {isEn ? 'Debug bypass: click blue ' : 'Bypass dev: klik tombol biru '}<strong>[➔ Masuk]</strong> {isEn ? 'button on the right panel to login directly without OTP.' : 'pada panel akun debug di kanan untuk langsung masuk tanpa OTP.'}</p>
+                                )}
+                                <p>3. {isEn ? 'Emergency disable OTP: set ' : 'Darurat: atur '}<code>LOGIN_OTP_ENABLED=false</code> {isEn ? 'in .env file.' : 'di file .env.'}</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

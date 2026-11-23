@@ -105,6 +105,8 @@ class AuthenticatedSessionController extends Controller
             'status'               => session('status'),
             'canRecoverBot'        => false,
             'botRecoveryState'     => null,
+            'botRecoveryRawStatus' => null,
+            'botRecoveryMessage'   => null,
             'botRecoveryExpiresAt' => 0,
             'serverNow'            => now()->timestamp,
             'devDebugAuthEnabled'  => $devDebugEnabled,
@@ -120,8 +122,8 @@ class AuthenticatedSessionController extends Controller
     public function createAdmin(Request $request): Response
     {
         $recoveryMeta = LoginOtpController::getValidBotRecoveryMeta($request);
-        $botRecoveryState = $recoveryMeta !== null
-            ? app(WhatsAppBotLauncher::class)->inspectStatus()['state']
+        $botInspection = $recoveryMeta !== null
+            ? app(WhatsAppBotLauncher::class)->inspectStatus()
             : null;
 
         $devDebugEnabled = $this->isDevDebugAuthEnabled();
@@ -131,7 +133,9 @@ class AuthenticatedSessionController extends Controller
             'canRegister'          => false,
             'status'               => session('status'),
             'canRecoverBot'        => $recoveryMeta !== null,
-            'botRecoveryState'     => $botRecoveryState,
+            'botRecoveryState'     => $botInspection['state'] ?? null,
+            'botRecoveryRawStatus' => $botInspection['raw_status'] ?? null,
+            'botRecoveryMessage'   => $botInspection['message'] ?? null,
             'botRecoveryExpiresAt' => $recoveryMeta['expires_at'] ?? 0,
             'serverNow'            => now()->timestamp,
             'devDebugAuthEnabled'  => $devDebugEnabled,

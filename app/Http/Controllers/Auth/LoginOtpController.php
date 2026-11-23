@@ -339,9 +339,10 @@ class LoginOtpController extends Controller
 
         if ($status['state'] === 'needs_pairing') {
             return response()->json([
-                'status'  => 'needs_pairing',
-                'state'   => 'needs_pairing',
-                'message' => __('telunas.bot_needs_pairing_recovery'),
+                'status'     => 'needs_pairing',
+                'state'      => 'needs_pairing',
+                'raw_status' => $status['raw_status'] ?? 'needs_pairing',
+                'message'    => $status['message'] ?? __('telunas.bot_needs_pairing_recovery'),
             ]);
         }
 
@@ -368,9 +369,10 @@ class LoginOtpController extends Controller
 
             if ($launchResult['state'] === 'needs_pairing') {
                 return response()->json([
-                    'status'  => 'needs_pairing',
-                    'state'   => 'needs_pairing',
-                    'message' => __('telunas.bot_needs_pairing_recovery'),
+                    'status'     => 'needs_pairing',
+                    'state'      => 'needs_pairing',
+                    'raw_status' => $launchResult['raw_status'] ?? 'needs_pairing',
+                    'message'    => $launchResult['message'] ?? __('telunas.bot_needs_pairing_recovery'),
                 ]);
             }
 
@@ -423,9 +425,10 @@ class LoginOtpController extends Controller
 
         if ($status['state'] === 'needs_pairing') {
             return response()->json([
-                'status'  => 'needs_pairing',
-                'state'   => 'needs_pairing',
-                'message' => __('telunas.bot_needs_pairing_recovery'),
+                'status'     => 'needs_pairing',
+                'state'      => 'needs_pairing',
+                'raw_status' => $status['raw_status'] ?? 'needs_pairing',
+                'message'    => $status['message'] ?? __('telunas.bot_needs_pairing_recovery'),
             ]);
         }
 

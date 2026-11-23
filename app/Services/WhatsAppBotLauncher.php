@@ -66,12 +66,20 @@ class WhatsAppBotLauncher
                     }
 
                     if (in_array($rawStatus, ['qr_ready', 'pairing_ready', 'unlinked', 'logged_out'], true)) {
+                        $message = match ($rawStatus) {
+                            'logged_out'    => __('telunas.bot_status_logged_out'),
+                            'qr_ready'      => __('telunas.bot_status_qr_ready'),
+                            'pairing_ready' => __('telunas.bot_status_pairing_ready'),
+                            'unlinked'      => __('telunas.bot_status_unlinked'),
+                            default         => __('telunas.bot_status_needs_pairing'),
+                        };
+
                         return [
                             'reachable'  => true,
                             'connected'  => false,
                             'state'      => 'needs_pairing',
                             'raw_status' => $rawStatus,
-                            'message'    => __('telunas.bot_status_needs_pairing'),
+                            'message'    => $message,
                         ];
                     }
 
