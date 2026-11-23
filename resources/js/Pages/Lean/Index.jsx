@@ -1794,10 +1794,10 @@ export default function LeanIndex({
                         )}
                     </div>
 
-                    {/* Row 2: Balanced Grid on Mobile for Month, Dept & Sort, Flex on Desktop */}
+                    {/* Row 2: Balanced Grid on Mobile for Month, Dept, View Mode, Customizer & Sort; Flex on Desktop */}
                     <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
-                        {/* Month Tab Switcher (12 Tab Bulanan Google Sheet) */}
-                        <div className="w-full sm:w-auto">
+                        {/* 1. Month Tab Switcher (12 Tab Bulanan Google Sheet) */}
+                        <div className="w-full sm:w-auto order-1 sm:order-1">
                             <select
                                 value={selectedMonthFilter}
                                 onChange={(e) => setSelectedMonthFilter(e.target.value)}
@@ -1824,8 +1824,8 @@ export default function LeanIndex({
                             </select>
                         </div>
 
-                        {/* Department Filter */}
-                        <div className="w-full sm:w-auto">
+                        {/* 2. Department Filter */}
+                        <div className="w-full sm:w-auto order-2 sm:order-2">
                             <select
                                 value={selectedDeptFilter}
                                 onChange={(e) => setSelectedDeptFilter(e.target.value)}
@@ -1842,32 +1842,10 @@ export default function LeanIndex({
                             </select>
                         </div>
 
-                        {/* Sort Cepat Control */}
-                        <div className="w-full sm:w-auto relative flex items-center">
-                            <ArrowUpDown className="w-3.5 h-3.5 text-emerald-500 absolute left-2.5 sm:left-3 pointer-events-none z-10" />
-                            <select
-                                value={sortBy}
-                                onChange={(e) => setSortBy(e.target.value)}
-                                className={`w-full sm:w-auto text-xs font-semibold rounded-xl pl-7 sm:pl-8 pr-3 py-2 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm border truncate liquid-glass-control ${
-                                    isDark
-                                        ? 'text-slate-200'
-                                        : 'text-slate-800'
-                                }`}
-                                title={isEn ? 'Quickly sort ticket list' : 'Urutkan daftar tiket secara cepat'}
-                            >
-                                <option value="newest">{isEn ? '🕒 Newest' : '🕒 Terbaru'}</option>
-                                <option value="oldest">{isEn ? '⏳ Oldest' : '⏳ Terlama'}</option>
-                                <option value="status">{isEn ? '📊 Progress Status' : '📊 Status Progres'}</option>
-                                <option value="eta_urgent">{isEn ? '⏰ Longest Without Update' : '⏰ Paling Lama Tanpa Update'}</option>
-                                <option value="open_first">{isEn ? '🔥 Open (Unclaimed)' : '🔥 Belum Ditangani (Open)'}</option>
-                            </select>
-                        </div>
-
-                        {/* Actions group: Desktop View Mode Toggle (Cards/Table), Desktop Grid Switcher, Desktop New Report & Column Customizer */}
-                        <div className="w-full sm:w-auto md:ml-auto flex items-center justify-end gap-2">
-                            {/* Desktop View Switcher between Cards and Table inside Dashboard */}
+                        {/* 3. View Switcher between Cards and Table inside Dashboard (Available on both Mobile & Desktop) */}
+                        <div className="w-full sm:w-auto order-3 sm:order-4 md:ml-auto">
                             <div
-                                className={`hidden md:inline-flex items-center gap-0.5 p-1 rounded-xl border shadow-sm liquid-glass-subtle shrink-0 ${
+                                className={`w-full sm:w-auto h-9 flex items-center gap-0.5 p-1 rounded-xl border shadow-sm liquid-glass-subtle shrink-0 ${
                                     isDark ? 'text-slate-300' : 'text-slate-700'
                                 }`}
                                 role="group"
@@ -1876,7 +1854,7 @@ export default function LeanIndex({
                                 <button
                                     type="button"
                                     onClick={() => handleViewModeChange('cards')}
-                                    className={`px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                    className={`flex-1 sm:flex-initial h-full px-2.5 py-1 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                                         viewMode === 'cards'
                                             ? 'bg-emerald-600 text-white shadow-xs keep-white'
                                             : isDark
@@ -1891,7 +1869,7 @@ export default function LeanIndex({
                                 <button
                                     type="button"
                                     onClick={() => handleViewModeChange('table')}
-                                    className={`px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                    className={`flex-1 sm:flex-initial h-full px-2.5 py-1 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                                         viewMode === 'table'
                                             ? 'bg-emerald-600 text-white shadow-xs keep-white'
                                             : isDark
@@ -1904,11 +1882,59 @@ export default function LeanIndex({
                                     <span>{isEn ? 'Table' : 'Tabel'}</span>
                                 </button>
                             </div>
+                        </div>
 
+                        {/* 4. Column Customizer Button */}
+                        <div className="w-full sm:w-auto order-4 sm:order-7">
+                            <button
+                                type="button"
+                                onClick={() => setShowColumnModal(true)}
+                                className={`w-full sm:w-auto h-9 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all shadow-sm border liquid-glass-subtle cursor-pointer ${
+                                    isDark
+                                        ? 'text-slate-200'
+                                        : 'text-slate-800'
+                                }`}
+                                title={isEn ? 'Choose which data/columns to display' : 'Pilih data/kolom apa saja yang ingin ditampilkan'}
+                            >
+                                <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-500" />
+                                <span>{isEn ? 'Columns' : 'Tampilan'}</span>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
+                                    isDark
+                                        ? 'bg-emerald-950 text-emerald-300 border-emerald-800/60'
+                                        : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                }`}>
+                                    {activeColumnCount}/{columnDefs.length}
+                                </span>
+                            </button>
+                        </div>
+
+                        {/* 5. Sort Cepat Control */}
+                        <div className="col-span-2 sm:col-span-1 w-full sm:w-auto relative flex items-center order-5 sm:order-3">
+                            <ArrowUpDown className="w-3.5 h-3.5 text-emerald-500 absolute left-2.5 sm:left-3 pointer-events-none z-10" />
+                            <select
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value)}
+                                className={`w-full sm:w-auto h-9 text-xs font-semibold rounded-xl pl-7 sm:pl-8 pr-3 py-2 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm border truncate liquid-glass-control ${
+                                    isDark
+                                        ? 'text-slate-200'
+                                        : 'text-slate-800'
+                                }`}
+                                title={isEn ? 'Quickly sort ticket list' : 'Urutkan daftar tiket secara cepat'}
+                            >
+                                <option value="newest">{isEn ? '🕒 Newest' : '🕒 Terbaru'}</option>
+                                <option value="oldest">{isEn ? '⏳ Oldest' : '⏳ Terlama'}</option>
+                                <option value="status">{isEn ? '📊 Progress Status' : '📊 Status Progres'}</option>
+                                <option value="eta_urgent">{isEn ? '⏰ Longest Without Update' : '⏰ Paling Lama Tanpa Update'}</option>
+                                <option value="open_first">{isEn ? '🔥 Open (Unclaimed)' : '🔥 Belum Ditangani (Open)'}</option>
+                            </select>
+                        </div>
+
+                        {/* 6. Desktop-Only Controls: Grid Density Switcher & Desktop New Report */}
+                        <div className="hidden md:flex items-center gap-2 order-6 sm:order-5">
                             {/* Card Grid Density Switcher (Desktop, Cards View Only) */}
                             {viewMode === 'cards' && (
                                 <div
-                                    className={`hidden md:inline-flex items-center gap-0.5 p-1 rounded-xl border shadow-sm liquid-glass-subtle shrink-0 ${
+                                    className={`inline-flex items-center gap-0.5 p-1 rounded-xl border shadow-sm liquid-glass-subtle shrink-0 ${
                                         isDark ? 'text-slate-300' : 'text-slate-700'
                                     }`}
                                     role="group"
@@ -1948,31 +1974,11 @@ export default function LeanIndex({
                             <button
                                 type="button"
                                 onClick={() => setShowReportModal(true)}
-                                className="hidden md:flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white keep-white font-bold text-xs rounded-xl shadow-md hover:shadow-emerald-600/30 transition-all cursor-pointer shrink-0"
+                                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white keep-white font-bold text-xs rounded-xl shadow-md hover:shadow-emerald-600/30 transition-all cursor-pointer shrink-0 sm:order-6"
                                 title={isEn ? 'Report New Issue' : 'Laporkan Masalah Baru'}
                             >
                                 <Plus className="w-3.5 h-3.5" />
                                 <span>{isEn ? 'New Report' : 'Lapor Baru'}</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setShowColumnModal(true)}
-                                className={`w-full sm:w-auto flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all shadow-sm border liquid-glass-subtle ${
-                                    isDark
-                                        ? 'text-slate-200'
-                                        : 'text-slate-800'
-                                }`}
-                                title={isEn ? 'Choose which data/columns to display' : 'Pilih data/kolom apa saja yang ingin ditampilkan'}
-                            >
-                                <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-500" />
-                                <span>{isEn ? 'Columns' : 'Tampilan'}</span>
-                                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
-                                    isDark
-                                        ? 'bg-emerald-950 text-emerald-300 border-emerald-800/60'
-                                        : 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                }`}>
-                                    {activeColumnCount}/{columnDefs.length}
-                                </span>
                             </button>
                         </div>
                     </div>
