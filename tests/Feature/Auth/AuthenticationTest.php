@@ -23,6 +23,7 @@ class AuthenticationTest extends TestCase
         Config::set('telunas.login_otp_enabled', true);
         Config::set('telunas.login_otp_require_whatsapp', false);
         Config::set('telunas.registration_enabled', false);
+        Config::set('telunas.admin_login_slug', 'telunas123454321');
     }
 
     public function test_login_screen_can_be_rendered_and_hides_registration_when_disabled(): void
@@ -34,7 +35,43 @@ class AuthenticationTest extends TestCase
                 ->component('Auth/Login')
                 ->where('canRegister', false)
                 ->where('canRecoverBot', false)
+                ->where('isAdminPortal', false)
             );
+    }
+
+    public function test_admin_login_portal_can_be_rendered_and_has_admin_portal_branding(): void
+    {
+        $this->get('/telunas123454321')->assertRedirect(route('admin.login'));
+
+        $response = $this->get('/telunas123454321/login');
+
+        $response->assertStatus(200)
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Auth/Login')
+                ->where('isAdminPortal', true)
+                ->where('canRecoverBot', false)
+                ->where('loginPostUrl', route('admin.login.store'))
+            );
+    }
+
+    public function test_non_admin_user_is_strictly_rejected_from_admin_login_portal(): void
+    {
+        $staff = User::factory()->create([
+            'role'            => 'department',
+            'department'      => 'Housekeeping',
+            'whatsapp_number' => '081234567890',
+            'is_active'       => true,
+            'approval_status' => 'approved',
+        ]);
+
+        $response = $this->from('/telunas123454321/login')->post('/telunas123454321/login', [
+            'email'    => $staff->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertGuest();
+        $response->assertRedirect('/telunas123454321/login');
+        $response->assertSessionHasErrors('email');
     }
 
     public function test_email_only_user_without_whatsapp_can_authenticate_during_transitional_phase(): void
@@ -433,23 +470,31 @@ class AuthenticationTest extends TestCase
             'approval_status' => 'approved',
         ]);
 
-        // 1. Admin enters valid email + password while bot is offline
-        $loginResponse = $this->from('/login')->post('/login', [
+        // 1. Admin enters valid email + password at Admin Portal while bot is offline
+        $loginResponse = $this->from('/telunas123454321/login')->post('/telunas123454321/login', [
             'email'    => $admin->email,
             'password' => 'password',
         ]);
 
         $this->assertGuest();
-        $loginResponse->assertRedirect('/login');
+        $loginResponse->assertRedirect('/telunas123454321/login');
         $loginResponse->assertSessionHasErrors('email');
         $loginResponse->assertSessionHas(LoginOtpController::BOT_RECOVERY_SESSION_KEY);
         $loginResponse->assertSessionMissing(LoginOtpController::SESSION_KEY);
 
-        // 2. Login screen renders bottom-left recovery prop for verified admin only
-        $this->get('/login')->assertInertia(fn (Assert $page) => $page
+        // 2. Admin portal renders bottom-left recovery prop for verified admin
+        $this->get('/telunas123454321/login')->assertInertia(fn (Assert $page) => $page
             ->component('Auth/Login')
+            ->where('isAdminPortal', true)
             ->where('canRecoverBot', true)
             ->where('botRecoveryState', 'offline')
+        );
+
+        // 3. Regular /login page remains completely clean even with recovery session
+        $this->get('/login')->assertInertia(fn (Assert $page) => $page
+            ->component('Auth/Login')
+            ->where('isAdminPortal', false)
+            ->where('canRecoverBot', false)
         );
 
         // 3. Clicking "Aktifkan Bot" launches bot and returns booting state
@@ -515,7 +560,7 @@ class AuthenticationTest extends TestCase
             'approval_status' => 'approved',
         ]);
 
-        $this->from('/login')->post('/login', [
+        $this->from('/telunas123454321/login')->post('/telunas123454321/login', [
             'email'    => $admin->email,
             'password' => 'password',
         ])->assertSessionHas(LoginOtpController::BOT_RECOVERY_SESSION_KEY);
@@ -562,14 +607,14 @@ class AuthenticationTest extends TestCase
             'approval_status' => 'approved',
         ]);
 
-        $this->from('/login')->post('/login', [
+        $this->from('/telunas123454321/login')->post('/telunas123454321/login', [
             'email'    => $admin->email,
             'password' => 'password',
         ])->assertSessionHas(LoginOtpController::BOT_RECOVERY_SESSION_KEY);
 
         $this->travel(3)->minutes();
 
-        $this->get('/login')->assertInertia(fn (Assert $page) => $page
+        $this->get('/telunas123454321/login')->assertInertia(fn (Assert $page) => $page
             ->component('Auth/Login')
             ->where('canRecoverBot', false)
         );
@@ -608,7 +653,7 @@ class AuthenticationTest extends TestCase
             'approval_status' => 'approved',
         ]);
 
-        $this->from('/login')->post('/login', [
+        $this->from('/telunas123454321/login')->post('/telunas123454321/login', [
             'email'    => $admin->email,
             'password' => 'password',
         ])->assertSessionHas(LoginOtpController::BOT_RECOVERY_SESSION_KEY);

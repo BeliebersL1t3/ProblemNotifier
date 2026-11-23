@@ -34,6 +34,8 @@ export default function Login({
     serverNow = 0,
     devDebugAuthEnabled = false,
     devDebugAccounts = [],
+    isAdminPortal = false,
+    loginPostUrl = null,
 }) {
     const { lang } = useLanguage();
     const isEn = lang === 'en';
@@ -311,7 +313,7 @@ export default function Login({
             password: passwordVal || '',
         }));
 
-        post(route('login'), {
+        post(loginPostUrl || route('login'), {
             onFinish: () => reset('password'),
         });
     };
@@ -329,7 +331,7 @@ export default function Login({
     );
 
     const botBusy = botStarting || botPolling;
-    const leftRecoveryButton = isRecoveryActive ? (
+    const leftRecoveryButton = (isAdminPortal && isRecoveryActive) ? (
         <button
             type="button"
             onClick={handleActivateBot}
@@ -585,16 +587,30 @@ export default function Login({
 
     return (
         <GuestLayout leftBottomAction={leftRecoveryButton} rightSidePanel={devDebugPanel}>
-            <Head title={isEn ? 'Sign In — Telunas Issue Tracker' : 'Masuk — Telunas Issue Tracker'} />
+            <Head
+                title={
+                    isAdminPortal
+                        ? (isEn ? 'Admin Portal — Telunas Issue Tracker' : 'Portal Admin — Telunas Issue Tracker')
+                        : (isEn ? 'Sign In — Telunas Issue Tracker' : 'Masuk — Telunas Issue Tracker')
+                }
+            />
 
             <div className="mb-6">
+                {isAdminPortal && (
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 text-amber-400 text-[11px] font-bold tracking-wide uppercase mb-3 shadow-xs border border-slate-700">
+                        <Shield className="w-3.5 h-3.5 text-amber-400" />
+                        <span>{isEn ? 'Admin & Server Recovery Portal' : 'Portal Admin & Pemulihan Server'}</span>
+                    </div>
+                )}
                 <h3 className="text-xl font-bold text-gray-900 tracking-tight">
-                    {isEn ? 'Sign In to Account' : 'Masuk ke Akun'}
+                    {isAdminPortal
+                        ? (isEn ? 'Admin Portal Sign In' : 'Masuk Portal Administrator')
+                        : (isEn ? 'Sign In to Account' : 'Masuk ke Akun')}
                 </h3>
                 <p className="text-xs text-gray-500 mt-1">
-                    {isEn
-                        ? 'Enter your resort account email and password.'
-                        : 'Silakan masukkan email dan password akun resort Anda.'}
+                    {isAdminPortal
+                        ? (isEn ? 'Special access for system administrators & bot recovery.' : 'Akses khusus administrator sistem & pemulihan server bot.')
+                        : (isEn ? 'Enter your resort account email and password.' : 'Silakan masukkan email dan password akun resort Anda.')}
                 </p>
             </div>
 
@@ -638,7 +654,7 @@ export default function Login({
                 </div>
             )}
 
-            {recoveryMessage && recoveryPhase !== 'idle' && (
+            {isAdminPortal && recoveryMessage && recoveryPhase !== 'idle' && (
                 <div
                     className={`mb-4 rounded-lg border p-3 text-xs flex items-start gap-2 ${
                         recoveryPhase === 'otp_sent'

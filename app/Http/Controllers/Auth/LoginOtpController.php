@@ -260,9 +260,12 @@ class LoginOtpController extends Controller
      */
     public function cancel(Request $request): RedirectResponse
     {
-        $request->session()->forget([self::SESSION_KEY, self::BOT_RECOVERY_SESSION_KEY]);
+        $isFromAdmin = $request->session()->get('login_portal') === 'admin';
+        $request->session()->forget([self::SESSION_KEY, self::BOT_RECOVERY_SESSION_KEY, 'login_portal']);
 
-        return redirect()->route('login');
+        return $isFromAdmin && \Illuminate\Support\Facades\Route::has('admin.login')
+            ? redirect()->route('admin.login')
+            : redirect()->route('login');
     }
 
     /**

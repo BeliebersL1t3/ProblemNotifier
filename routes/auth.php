@@ -28,6 +28,16 @@ Route::middleware('guest')->group(function () {
     Route::post('login', [AuthenticatedSessionController::class, 'store'])
         ->middleware('throttle:10,1');
 
+    $adminSlug = trim((string) config('telunas.admin_login_slug', 'telunas123454321'), '/');
+    if ($adminSlug !== '') {
+        Route::get("{$adminSlug}", fn () => redirect()->route('admin.login'));
+        Route::get("{$adminSlug}/login", [AuthenticatedSessionController::class, 'createAdmin'])
+            ->name('admin.login');
+        Route::post("{$adminSlug}/login", [AuthenticatedSessionController::class, 'storeAdmin'])
+            ->middleware('throttle:10,1')
+            ->name('admin.login.store');
+    }
+
     if (app()->environment('local') && (bool) config('app.debug')) {
         Route::post('dev/quick-login', [AuthenticatedSessionController::class, 'devQuickLogin'])
             ->middleware('throttle:30,1')

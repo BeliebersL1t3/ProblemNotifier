@@ -59,6 +59,8 @@ return [
 
     'bot_recovery_cooldown_seconds' => (int) env('BOT_RECOVERY_COOLDOWN_SECONDS', 8),
 
+    'admin_login_slug' => env('ADMIN_LOGIN_SLUG', 'telunas123454321'),
+
     'registration_enabled' => env('REGISTRATION_ENABLED', false),
 
     /*

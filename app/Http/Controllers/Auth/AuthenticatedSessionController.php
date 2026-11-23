@@ -97,6 +97,28 @@ class AuthenticatedSessionController extends Controller
      */
     public function create(Request $request): Response
     {
+        $devDebugEnabled = $this->isDevDebugAuthEnabled();
+
+        return Inertia::render('Auth/Login', [
+            'canResetPassword'     => Route::has('password.request'),
+            'canRegister'          => filter_var(config('telunas.registration_enabled', false), FILTER_VALIDATE_BOOLEAN),
+            'status'               => session('status'),
+            'canRecoverBot'        => false,
+            'botRecoveryState'     => null,
+            'botRecoveryExpiresAt' => 0,
+            'serverNow'            => now()->timestamp,
+            'devDebugAuthEnabled'  => $devDebugEnabled,
+            'devDebugAccounts'     => $devDebugEnabled ? $this->getDevDebugAccounts() : [],
+            'isAdminPortal'        => false,
+            'loginPostUrl'         => route('login'),
+        ]);
+    }
+
+    /**
+     * Display the Admin & Server Recovery login view.
+     */
+    public function createAdmin(Request $request): Response
+    {
         $recoveryMeta = LoginOtpController::getValidBotRecoveryMeta($request);
         $botRecoveryState = $recoveryMeta !== null
             ? app(WhatsAppBotLauncher::class)->inspectStatus()['state']
@@ -105,8 +127,8 @@ class AuthenticatedSessionController extends Controller
         $devDebugEnabled = $this->isDevDebugAuthEnabled();
 
         return Inertia::render('Auth/Login', [
-            'canResetPassword'     => Route::has('password.request'),
-            'canRegister'          => filter_var(config('telunas.registration_enabled', false), FILTER_VALIDATE_BOOLEAN),
+            'canResetPassword'     => false,
+            'canRegister'          => false,
             'status'               => session('status'),
             'canRecoverBot'        => $recoveryMeta !== null,
             'botRecoveryState'     => $botRecoveryState,
@@ -114,6 +136,8 @@ class AuthenticatedSessionController extends Controller
             'serverNow'            => now()->timestamp,
             'devDebugAuthEnabled'  => $devDebugEnabled,
             'devDebugAccounts'     => $devDebugEnabled ? $this->getDevDebugAccounts() : [],
+            'isAdminPortal'        => true,
+            'loginPostUrl'         => route('admin.login.store'),
         ]);
     }
 
@@ -125,6 +149,7 @@ class AuthenticatedSessionController extends Controller
     public function store(LoginRequest $request): RedirectResponse
     {
         $request->session()->forget(LoginOtpController::BOT_RECOVERY_SESSION_KEY);
+        $request->session()->put('login_portal', 'user');
 
         $user = $request->validateCredentialsWithoutLogin();
         $remember = $request->boolean('remember');
@@ -166,21 +191,80 @@ class AuthenticatedSessionController extends Controller
         if (!$sent) {
             $request->session()->forget(LoginOtpController::SESSION_KEY);
 
-            if ($user->isAdmin()) {
-                LoginOtpController::initiateAdminBotRecovery($request, $user, $remember);
-                $botState = app(WhatsAppBotLauncher::class)->inspectStatus()['state'];
+            // On regular login, do NOT initiate admin bot recovery. The regular page stays 100% clean.
+            throw ValidationException::withMessages([
+                'email' => __('telunas.otp_send_failed_user'),
+            ]);
+        }
 
-                $errorMessage = ($botState === 'needs_pairing')
-                    ? __('telunas.otp_needs_pairing_admin_hint')
-                    : __('telunas.otp_send_failed_admin_hint');
+        return redirect()->route('login.otp');
+    }
 
+    /**
+     * Handle an incoming Admin authentication request.
+     *
+     * @throws ValidationException
+     */
+    public function storeAdmin(LoginRequest $request): RedirectResponse
+    {
+        $request->session()->forget(LoginOtpController::BOT_RECOVERY_SESSION_KEY);
+        $request->session()->put('login_portal', 'admin');
+
+        $user = $request->validateCredentialsWithoutLogin();
+        $remember = $request->boolean('remember');
+
+        // Security Role Gate: Strictly reject non-admin users from admin portal
+        if (!$user->isAdmin()) {
+            throw ValidationException::withMessages([
+                'email' => 'Akses ditolak. Halaman login ini khusus untuk akun Administrator.',
+            ]);
+        }
+
+        $otpEnabled = filter_var(config('telunas.login_otp_enabled', true), FILTER_VALIDATE_BOOLEAN);
+        if (!$otpEnabled) {
+            Auth::login($user, $remember);
+            $request->session()->regenerate();
+
+            return redirect()->intended(route('lean.index', absolute: false));
+        }
+
+        $cleanDigits = preg_replace('/[^0-9]/', '', (string) ($user->whatsapp_number ?? ''));
+        $requireWhatsapp = filter_var(config('telunas.login_otp_require_whatsapp', false), FILTER_VALIDATE_BOOLEAN);
+
+        if ($cleanDigits === '') {
+            if ($requireWhatsapp) {
                 throw ValidationException::withMessages([
-                    'email' => $errorMessage,
+                    'email' => __('telunas.otp_whatsapp_missing'),
                 ]);
             }
 
+            Auth::login($user, $remember);
+            $request->session()->regenerate();
+
+            return redirect()->intended(route('lean.index', absolute: false));
+        }
+
+        if (!TicketNotificationService::isValidIndonesianMobile($cleanDigits)) {
             throw ValidationException::withMessages([
-                'email' => __('telunas.otp_send_failed_user'),
+                'email' => __('telunas.otp_whatsapp_invalid'),
+            ]);
+        }
+
+        $request->session()->regenerate();
+
+        $sent = LoginOtpController::initiateChallenge($request, $user, $remember);
+        if (!$sent) {
+            $request->session()->forget(LoginOtpController::SESSION_KEY);
+
+            LoginOtpController::initiateAdminBotRecovery($request, $user, $remember);
+            $botState = app(WhatsAppBotLauncher::class)->inspectStatus()['state'];
+
+            $errorMessage = ($botState === 'needs_pairing')
+                ? __('telunas.otp_needs_pairing_admin_hint')
+                : __('telunas.otp_send_failed_admin_hint');
+
+            throw ValidationException::withMessages([
+                'email' => $errorMessage,
             ]);
         }
 
