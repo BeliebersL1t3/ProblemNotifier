@@ -301,10 +301,6 @@ export default function LeanInteractiveMapView({
             return;
         }
 
-        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-            setShowSidebar(false);
-        }
-
         const nearbyIssues = pinnedIssues.filter((iss) => {
             const dx = parseFloat(iss.map_x) - pctX;
             const dy = parseFloat(iss.map_y) - pctY;
@@ -320,6 +316,7 @@ export default function LeanInteractiveMapView({
             label: nearbyIssues[0]?.map_label || nearbyIssues[0]?.location || '',
         });
         setCustomPinLabel(nearbyIssues[0]?.map_label || nearbyIssues[0]?.location || '');
+        setShowSidebar(true);
     };
 
     // Zoom Controls
@@ -884,9 +881,6 @@ export default function LeanInteractiveMapView({
                                     type="button"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-                                            setShowSidebar(false);
-                                        }
                                         setActiveSelection({
                                             type: 'cluster',
                                             resort: activeResort,
@@ -896,6 +890,7 @@ export default function LeanInteractiveMapView({
                                             label: cluster.label,
                                         });
                                         setCustomPinLabel(cluster.label);
+                                        setShowSidebar(true);
                                     }}
                                     className={`absolute -translate-x-1/2 -translate-y-1/2 z-30 transition-all duration-200 group cursor-pointer focus:outline-none ${
                                         isSelected ? 'scale-125 z-40' : 'hover:scale-115'
@@ -946,509 +941,464 @@ export default function LeanInteractiveMapView({
                             {/* Drag Indicator Pill for Mobile */}
                             <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto my-2.5 lg:hidden shrink-0" />
 
-                            {/* Sidebar Header & Tab Switcher */}
-                            <div className="p-3 border-b border-slate-200 dark:border-slate-800 space-y-2.5 shrink-0">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                                        <Layers className="w-4 h-4 text-emerald-500" />
-                                        <span>{isEn ? 'Resort Issues Drawer' : 'Daftar Isu Denah'}</span>
-                                    </h3>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowSidebar(false)}
-                                        className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                        title="Tutup Panel"
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </button>
-                                </div>
-
-                            {/* Tab Switcher: Belum Ada Pin vs Sudah di Peta */}
-                            <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-                                <button
-                                    type="button"
-                                    onClick={() => setSidebarTab('unmapped')}
-                                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                                        sidebarTab === 'unmapped'
-                                            ? 'bg-amber-500 text-slate-950 shadow-xs'
-                                            : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                                    }`}
-                                >
-                                    <span>{isEn ? 'Unmapped' : 'Belum Ada Pin'}</span>
-                                    <span className="px-1.5 py-0.2 rounded-full bg-black/20 text-[10px] font-mono">
-                                        {unmappedIssues.length}
-                                    </span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setSidebarTab('pinned')}
-                                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                                        sidebarTab === 'pinned'
-                                            ? 'bg-emerald-600 text-white shadow-xs'
-                                            : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                                    }`}
-                                >
-                                    <span>{isEn ? 'On Map' : 'Sudah di Peta'}</span>
-                                    <span className="px-1.5 py-0.2 rounded-full bg-black/20 text-[10px] font-mono">
-                                        {pinnedIssues.length}
-                                    </span>
-                                </button>
-                            </div>
-
-                            {/* Search bar in sidebar */}
-                            <div className="relative">
-                                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                                <input
-                                    type="text"
-                                    value={sidebarSearch}
-                                    onChange={(e) => setSidebarSearch(e.target.value)}
-                                    placeholder={
-                                        sidebarTab === 'unmapped'
-                                            ? isEn ? 'Search unmapped issues...' : 'Cari tiket tanpa pin...'
-                                            : isEn ? 'Search pinned issues...' : 'Cari isu di peta...'
-                                    }
-                                    className="w-full text-xs rounded-xl pl-8 pr-3 py-1.5 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                                />
-                            </div>
-                        </div>
-
-                        {/* List Content */}
-                        <div className="p-3 overflow-y-auto flex-1 space-y-2">
-                            {sidebarTab === 'unmapped' ? (
-                                unmappedIssues.length === 0 ? (
-                                    <div className="py-12 text-center text-slate-400 space-y-1">
-                                        <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
-                                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                                            {isEn ? 'All issues mapped!' : 'Semua isu sudah memiliki pin!'}
-                                        </p>
-                                        <p className="text-[11px] text-slate-500">
-                                            {isEn ? 'No active unmapped issues for this resort.' : 'Tidak ada tiket aktif yang belum dipetakan.'}
-                                        </p>
-                                    </div>
-                                ) : (
-                                    unmappedIssues.map((iss) => (
-                                        <div
-                                            key={iss.id}
-                                            className={`p-3 rounded-xl border transition-all ${
-                                                pendingIssueToPin?.id === iss.id
-                                                    ? 'border-amber-500 bg-amber-50/70 dark:bg-amber-950/40 ring-2 ring-amber-400'
-                                                    : isDark
-                                                    ? 'bg-slate-950/70 border-slate-800 hover:border-slate-700'
-                                                    : 'bg-slate-50 border-slate-200 hover:border-slate-300'
-                                            }`}
-                                        >
-                                            <div className="flex items-center justify-between gap-2 mb-1.5">
-                                                <span className="font-mono text-xs font-bold text-amber-500">
-                                                    #{iss.issue_code || iss.id}
-                                                </span>
-                                                <span
-                                                    className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                                                        iss.status === 'open'
-                                                            ? 'bg-rose-500/20 text-rose-500 border border-rose-500/30'
-                                                            : iss.status === 'in_progress'
-                                                            ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30'
-                                                            : 'bg-sky-500/20 text-sky-500 border border-sky-500/30'
-                                                    }`}
-                                                >
-                                                    {iss.status}
-                                                </span>
-                                            </div>
-
-                                            <h4 className="text-xs font-bold truncate text-slate-900 dark:text-white mb-0.5">
-                                                {iss.title}
-                                            </h4>
-                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mb-2">
-                                                📍 {iss.location}
-                                            </p>
-
-                                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/80">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        onSelectIssue(iss);
-                                                        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-                                                            setShowSidebar(false);
-                                                        }
-                                                    }}
-                                                    className="text-[11px] text-slate-500 hover:text-emerald-500"
-                                                >
-                                                    {isEn ? 'View Detail' : 'Lihat Detail'}
-                                                </button>
-
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        if (pendingIssueToPin?.id === iss.id) {
-                                                            setPendingIssueToPin(null);
-                                                        } else {
-                                                            setPendingIssueToPin(iss);
-                                                            setInteractionMode('pin');
-                                                            if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-                                                                setShowSidebar(false);
-                                                            }
-                                                            showToast(
-                                                                isEn
-                                                                    ? `Now click anywhere on the map to place #${iss.issue_code || iss.id}!`
-                                                                    : `Klik di mana saja pada denah untuk menempatkan pin #${iss.issue_code || iss.id}!`
-                                                            );
-                                                        }
-                                                    }}
-                                                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                                                        pendingIssueToPin?.id === iss.id
-                                                            ? 'bg-rose-500 text-white'
-                                                            : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-xs'
-                                                    }`}
-                                                >
-                                                    <MapPin className="w-3 h-3" />
-                                                    <span>
-                                                        {pendingIssueToPin?.id === iss.id
-                                                            ? isEn ? 'Cancel' : 'Batal'
-                                                            : isEn ? 'Drop Pin' : 'Taruh Pin'}
-                                                    </span>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))
-                                )
-                            ) : (
-                                pinnedIssues.length === 0 ? (
-                                    <div className="py-12 text-center text-slate-400 space-y-1">
-                                        <MapPin className="w-8 h-8 text-slate-400 mx-auto mb-2 opacity-60" />
-                                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                                            {isEn ? 'No pinned issues yet' : 'Belum ada isu yang dipetakan'}
-                                        </p>
-                                        <p className="text-[11px] text-slate-500">
-                                            {isEn ? 'Click "Drop Pin" on any unmapped issue.' : 'Pilih tab "Belum Ada Pin" lalu klik "Taruh Pin".'}
-                                        </p>
-                                    </div>
-                                ) : (
-                                    pinnedIssues.map((iss) => (
-                                        <div
-                                            key={iss.id}
-                                            className={`p-3 rounded-xl border transition-all ${
-                                                isDark
-                                                    ? 'bg-slate-950/70 border-slate-800 hover:border-slate-700'
-                                                    : 'bg-slate-50 border-slate-200 hover:border-slate-300'
-                                            }`}
-                                        >
-                                            <div className="flex items-center justify-between gap-2 mb-1">
-                                                <div className="flex items-center gap-1.5">
-                                                    <span className="font-mono text-xs font-bold text-emerald-500">
-                                                        #{iss.issue_code || iss.id}
-                                                    </span>
+                            {activeSelection ? (
+                                /* PIN ACTION VIEW (Directly in Sidebar) */
+                                <div className="flex flex-col h-full overflow-hidden">
+                                    {/* Header */}
+                                    <div className="p-3 border-b border-slate-200 dark:border-slate-800 space-y-2.5 shrink-0 bg-slate-50/90 dark:bg-slate-950/70">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-500 flex items-center justify-center font-bold shrink-0">
+                                                    <MapPin className="w-4 h-4" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <h4 className="font-bold text-xs truncate text-slate-900 dark:text-white">
+                                                        {activeSelection.type === 'draft'
+                                                            ? isEn ? 'New Pin Dropped' : 'Titik Pin Baru'
+                                                            : isEn ? 'Selected Pin' : 'Titik Pin Terpilih'}
+                                                    </h4>
                                                     <span className="text-[10px] font-mono text-slate-400">
-                                                        ({iss.map_x}%, {iss.map_y}%)
+                                                        {activeSelection.resort} • X: {activeSelection.x.toFixed(1)}%, Y: {activeSelection.y.toFixed(1)}%
                                                     </span>
                                                 </div>
-                                                <span
-                                                    className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                                                        iss.status === 'open'
-                                                            ? 'bg-rose-500/20 text-rose-500 border border-rose-500/30'
-                                                            : iss.status === 'in_progress'
-                                                            ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30'
-                                                            : 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30'
-                                                    }`}
-                                                >
-                                                    {iss.status}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setActiveSelection(null)}
+                                                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors shrink-0"
+                                                title={isEn ? 'Close & return to issue list' : 'Tutup & kembali ke daftar isu'}
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+
+                                        {/* Label input */}
+                                        <input
+                                            type="text"
+                                            value={customPinLabel}
+                                            onChange={(e) => setCustomPinLabel(e.target.value)}
+                                            placeholder={isEn ? 'Location label (e.g. Villa 05)...' : 'Label lokasi (cth: Villa 05, Pool)...'}
+                                            className="w-full text-xs rounded-xl px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                        />
+
+                                        {/* Quick Action: Create New Issue at This Coordinate */}
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                onOpenCreateIssue({
+                                                    resort: activeSelection.resort,
+                                                    x: activeSelection.x,
+                                                    y: activeSelection.y,
+                                                    label: customPinLabel.trim() || activeSelection.label,
+                                                });
+                                                if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                                                    setShowSidebar(false);
+                                                }
+                                            }}
+                                            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm hover:shadow-emerald-600/30 transition-all cursor-pointer"
+                                        >
+                                            <Plus className="w-3.5 h-3.5" />
+                                            <span>{isEn ? 'Report New Issue Here' : '+ Buat Isu Baru di Titik Ini'}</span>
+                                        </button>
+                                    </div>
+
+                                    {/* Scrollable Content: Issues at this point + Link Unmapped Issues */}
+                                    <div className="flex-1 overflow-y-auto p-3 space-y-4">
+                                        {/* Section 1: Issues already at this point */}
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
+                                                <span className="flex items-center gap-1.5 uppercase text-[11px] tracking-wider text-slate-400">
+                                                    <Layers className="w-3.5 h-3.5 text-sky-500" />
+                                                    {isEn ? 'Issues at this point' : 'Isu di Titik Ini'} ({activeSelection.issues.length})
                                                 </span>
                                             </div>
 
-                                            <h4 className="text-xs font-bold truncate text-slate-900 dark:text-white mb-0.5">
-                                                {iss.title}
-                                            </h4>
-                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mb-2">
-                                                📍 {iss.map_label || iss.location}
-                                            </p>
-
-                                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/80">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        onSelectIssue(iss);
-                                                        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-                                                            setShowSidebar(false);
-                                                        }
-                                                    }}
-                                                    className="text-[11px] text-emerald-500 font-semibold hover:underline"
-                                                >
-                                                    {isEn ? 'View Detail' : 'Lihat Detail'}
-                                                </button>
-
-                                                {(isAdmin || (userDept && (Array.isArray(iss.target_departments) ? iss.target_departments.includes(userDept) : iss.department === userDept))) && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleDetachPin(iss.id)}
-                                                        className="text-[11px] text-rose-500 hover:text-rose-600 flex items-center gap-1"
+                                            {activeSelection.issues.length === 0 ? (
+                                                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-dashed border-slate-200 dark:border-slate-800 text-center">
+                                                    <p className="text-[11px] text-slate-400">
+                                                        {isEn
+                                                            ? 'No issues linked yet. Choose an unmapped ticket below to link it here.'
+                                                            : 'Belum ada tiket tertaut. Pilih tiket tanpa pin di bawah untuk menautkannya ke titik ini.'}
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                activeSelection.issues.map((iss) => (
+                                                    <div
+                                                        key={iss.id}
+                                                        className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-1.5"
                                                     >
-                                                        <Unlink className="w-3 h-3" />
-                                                        <span>{isEn ? 'Unpin' : 'Lepas Pin'}</span>
-                                                    </button>
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <span className="font-mono text-xs font-bold text-amber-500">
+                                                                #{iss.issue_code || iss.id}
+                                                            </span>
+                                                            <span
+                                                                className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                                                                    iss.status === 'open'
+                                                                        ? 'bg-rose-500/20 text-rose-500 border border-rose-500/30'
+                                                                        : iss.status === 'in_progress'
+                                                                        ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30'
+                                                                        : iss.status === 'pending'
+                                                                        ? 'bg-sky-500/20 text-sky-500 border border-sky-500/30'
+                                                                        : 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30'
+                                                                }`}
+                                                            >
+                                                                {iss.status}
+                                                            </span>
+                                                        </div>
+                                                        <h5 className="text-xs font-bold truncate text-slate-900 dark:text-white">
+                                                            {iss.title}
+                                                        </h5>
+                                                        <p className="text-[11px] text-slate-400 truncate">
+                                                            📍 {iss.location}
+                                                        </p>
+                                                        <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-slate-800/80 text-[11px]">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    onSelectIssue(iss);
+                                                                    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                                                                        setShowSidebar(false);
+                                                                    }
+                                                                }}
+                                                                className="text-emerald-500 font-semibold hover:underline"
+                                                            >
+                                                                {isEn ? 'View Detail' : 'Lihat Detail'}
+                                                            </button>
+                                                            {(isAdmin || (userDept && (Array.isArray(iss.target_departments) ? iss.target_departments.includes(userDept) : iss.department === userDept))) && (
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={isPinningLoading}
+                                                                    onClick={() => handleDetachPin(iss.id)}
+                                                                    className="text-rose-500 hover:text-rose-600 flex items-center gap-1"
+                                                                >
+                                                                    <Unlink className="w-3 h-3" />
+                                                                    <span>{isEn ? 'Unpin' : 'Lepas Pin'}</span>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+
+                                        {/* Section 2: Link unmapped tickets to this coordinate */}
+                                        <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                                                    <LinkIcon className="w-3.5 h-3.5 text-amber-500" />
+                                                    {isEn ? 'Link Ticket to Here' : 'Tautkan Tiket ke Sini'}
+                                                </span>
+                                                <span className="text-[10px] text-slate-400">
+                                                    {unmappedIssues.length} {isEn ? 'available' : 'tersedia'}
+                                                </span>
+                                            </div>
+
+                                            {/* Search unmapped */}
+                                            <div className="relative">
+                                                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                                                <input
+                                                    type="text"
+                                                    value={unmappedSearch}
+                                                    onChange={(e) => setUnmappedSearch(e.target.value)}
+                                                    placeholder={isEn ? 'Search ticket to link...' : 'Cari tiket untuk ditautkan...'}
+                                                    className="w-full text-xs rounded-xl pl-8 pr-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                                />
+                                            </div>
+
+                                            {/* List unmapped issues */}
+                                            <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
+                                                {unmappedIssues.length === 0 ? (
+                                                    <p className="text-[11px] text-center text-slate-400 py-3">
+                                                        {isEn ? 'No unmapped tickets found.' : 'Tidak ada tiket tanpa pin ditemukan.'}
+                                                    </p>
+                                                ) : (
+                                                    unmappedIssues.map((iss) => (
+                                                        <div
+                                                            key={iss.id}
+                                                            className="p-2 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2"
+                                                        >
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span className="font-mono text-[10px] font-bold text-amber-500">
+                                                                        #{iss.issue_code || iss.id}
+                                                                    </span>
+                                                                    <span className="text-xs font-semibold truncate text-slate-900 dark:text-white">
+                                                                        {iss.title}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-[10px] text-slate-400 truncate">
+                                                                    📍 {iss.location}
+                                                                </p>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                disabled={isPinningLoading}
+                                                                onClick={() => handleAttachIssue(iss.id)}
+                                                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] transition-colors shrink-0 disabled:opacity-50 cursor-pointer shadow-2xs"
+                                                            >
+                                                                <LinkIcon className="w-3 h-3" />
+                                                                <span>{isEn ? 'Link' : 'Tautkan'}</span>
+                                                            </button>
+                                                        </div>
+                                                    ))
                                                 )}
                                             </div>
                                         </div>
-                                    ))
-                                )
+                                    </div>
+                                </div>
+                            ) : (
+                                /* NORMAL TICKET DRAWER VIEW */
+                                <div className="flex flex-col h-full overflow-hidden">
+                                    {/* Sidebar Header & Tab Switcher */}
+                                    <div className="p-3 border-b border-slate-200 dark:border-slate-800 space-y-2.5 shrink-0">
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                                                <Layers className="w-4 h-4 text-emerald-500" />
+                                                <span>{isEn ? 'Resort Issues Drawer' : 'Daftar Isu Denah'}</span>
+                                            </h3>
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowSidebar(false)}
+                                                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                title="Tutup Panel"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+
+                                        {/* Tab Switcher: Belum Ada Pin vs Sudah di Peta */}
+                                        <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                                            <button
+                                                type="button"
+                                                onClick={() => setSidebarTab('unmapped')}
+                                                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                                                    sidebarTab === 'unmapped'
+                                                        ? 'bg-amber-500 text-slate-950 shadow-xs'
+                                                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                                }`}
+                                            >
+                                                <span>{isEn ? 'Unmapped' : 'Belum Ada Pin'}</span>
+                                                <span className="px-1.5 py-0.2 rounded-full bg-black/20 text-[10px] font-mono">
+                                                    {unmappedIssues.length}
+                                                </span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSidebarTab('pinned')}
+                                                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                                                    sidebarTab === 'pinned'
+                                                        ? 'bg-emerald-600 text-white shadow-xs'
+                                                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                                }`}
+                                            >
+                                                <span>{isEn ? 'On Map' : 'Sudah di Peta'}</span>
+                                                <span className="px-1.5 py-0.2 rounded-full bg-black/20 text-[10px] font-mono">
+                                                    {pinnedIssues.length}
+                                                </span>
+                                            </button>
+                                        </div>
+
+                                        {/* Search bar in sidebar */}
+                                        <div className="relative">
+                                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                                            <input
+                                                type="text"
+                                                value={sidebarSearch}
+                                                onChange={(e) => setSidebarSearch(e.target.value)}
+                                                placeholder={
+                                                    sidebarTab === 'unmapped'
+                                                        ? isEn ? 'Search unmapped issues...' : 'Cari tiket tanpa pin...'
+                                                        : isEn ? 'Search pinned issues...' : 'Cari isu di peta...'
+                                                }
+                                                className="w-full text-xs rounded-xl pl-8 pr-3 py-1.5 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* List Content */}
+                                    <div className="p-3 overflow-y-auto flex-1 space-y-2">
+                                        {sidebarTab === 'unmapped' ? (
+                                            unmappedIssues.length === 0 ? (
+                                                <div className="py-12 text-center text-slate-400 space-y-1">
+                                                    <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
+                                                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                        {isEn ? 'All issues mapped!' : 'Semua isu sudah memiliki pin!'}
+                                                    </p>
+                                                    <p className="text-[11px] text-slate-500">
+                                                        {isEn ? 'No active unmapped issues for this resort.' : 'Tidak ada tiket aktif yang belum dipetakan.'}
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                unmappedIssues.map((iss) => (
+                                                    <div
+                                                        key={iss.id}
+                                                        className={`p-3 rounded-xl border transition-all ${
+                                                            pendingIssueToPin?.id === iss.id
+                                                                ? 'border-amber-500 bg-amber-50/70 dark:bg-amber-950/40 ring-2 ring-amber-400'
+                                                                : isDark
+                                                                ? 'bg-slate-950/70 border-slate-800 hover:border-slate-700'
+                                                                : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                                                            <span className="font-mono text-xs font-bold text-amber-500">
+                                                                #{iss.issue_code || iss.id}
+                                                            </span>
+                                                            <span
+                                                                className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                                                                    iss.status === 'open'
+                                                                        ? 'bg-rose-500/20 text-rose-500 border border-rose-500/30'
+                                                                        : iss.status === 'in_progress'
+                                                                        ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                                                                        : 'bg-sky-500/20 text-sky-500 border border-sky-500/30'
+                                                                }`}
+                                                            >
+                                                                {iss.status}
+                                                            </span>
+                                                        </div>
+
+                                                        <h4 className="text-xs font-bold truncate text-slate-900 dark:text-white mb-0.5">
+                                                            {iss.title}
+                                                        </h4>
+                                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mb-2">
+                                                            📍 {iss.location}
+                                                        </p>
+
+                                                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/80">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    onSelectIssue(iss);
+                                                                    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                                                                        setShowSidebar(false);
+                                                                    }
+                                                                }}
+                                                                className="text-[11px] text-slate-500 hover:text-emerald-500"
+                                                            >
+                                                                {isEn ? 'View Detail' : 'Lihat Detail'}
+                                                            </button>
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    if (pendingIssueToPin?.id === iss.id) {
+                                                                        setPendingIssueToPin(null);
+                                                                    } else {
+                                                                        setPendingIssueToPin(iss);
+                                                                        setInteractionMode('pin');
+                                                                        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                                                                            setShowSidebar(false);
+                                                                        }
+                                                                        showToast(
+                                                                            isEn
+                                                                                ? `Now click anywhere on the map to place #${iss.issue_code || iss.id}!`
+                                                                                : `Klik di mana saja pada denah untuk menempatkan pin #${iss.issue_code || iss.id}!`
+                                                                        );
+                                                                    }
+                                                                }}
+                                                                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                                                                    pendingIssueToPin?.id === iss.id
+                                                                        ? 'bg-rose-500 text-white'
+                                                                        : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-xs'
+                                                                }`}
+                                                            >
+                                                                <MapPin className="w-3 h-3" />
+                                                                <span>
+                                                                    {pendingIssueToPin?.id === iss.id
+                                                                        ? isEn ? 'Cancel' : 'Batal'
+                                                                        : isEn ? 'Drop Pin' : 'Taruh Pin'}
+                                                                </span>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            )
+                                        ) : (
+                                            pinnedIssues.length === 0 ? (
+                                                <div className="py-12 text-center text-slate-400 space-y-1">
+                                                    <MapPin className="w-8 h-8 text-slate-400 mx-auto mb-2 opacity-60" />
+                                                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                        {isEn ? 'No pinned issues yet' : 'Belum ada isu yang dipetakan'}
+                                                    </p>
+                                                    <p className="text-[11px] text-slate-500">
+                                                        {isEn ? 'Click "Drop Pin" on any unmapped issue.' : 'Pilih tab "Belum Ada Pin" lalu klik "Taruh Pin".'}
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                pinnedIssues.map((iss) => (
+                                                    <div
+                                                        key={iss.id}
+                                                        className={`p-3 rounded-xl border transition-all ${
+                                                            isDark
+                                                                ? 'bg-slate-950/70 border-slate-800 hover:border-slate-700'
+                                                                : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center justify-between gap-2 mb-1">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="font-mono text-xs font-bold text-emerald-500">
+                                                                    #{iss.issue_code || iss.id}
+                                                                </span>
+                                                                <span className="text-[10px] font-mono text-slate-400">
+                                                                    ({iss.map_x}%, {iss.map_y}%)
+                                                                </span>
+                                                            </div>
+                                                            <span
+                                                                className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                                                                    iss.status === 'open'
+                                                                        ? 'bg-rose-500/20 text-rose-500 border border-rose-500/30'
+                                                                        : iss.status === 'in_progress'
+                                                                        ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30'
+                                                                        : 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30'
+                                                                }`}
+                                                            >
+                                                                {iss.status}
+                                                            </span>
+                                                        </div>
+
+                                                        <h4 className="text-xs font-bold truncate text-slate-900 dark:text-white mb-0.5">
+                                                            {iss.title}
+                                                        </h4>
+                                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mb-2">
+                                                            📍 {iss.map_label || iss.location}
+                                                        </p>
+
+                                                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/80">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    onSelectIssue(iss);
+                                                                    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                                                                        setShowSidebar(false);
+                                                                    }
+                                                                }}
+                                                                className="text-[11px] text-emerald-500 font-semibold hover:underline"
+                                                            >
+                                                                {isEn ? 'View Detail' : 'Lihat Detail'}
+                                                            </button>
+
+                                                            {(isAdmin || (userDept && (Array.isArray(iss.target_departments) ? iss.target_departments.includes(userDept) : iss.department === userDept))) && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleDetachPin(iss.id)}
+                                                                    className="text-[11px] text-rose-500 hover:text-rose-600 flex items-center gap-1"
+                                                                >
+                                                                    <Unlink className="w-3 h-3" />
+                                                                    <span>{isEn ? 'Unpin' : 'Lepas Pin'}</span>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            )
+                                        )}
+                                    </div>
+                                </div>
                             )}
                         </div>
-                    </div>
                     </>
                 )}
             </div>
-
-            {/* PIN POPUP / DRAWER (WHEN A PIN OR DRAFT POINT IS CLICKED) */}
-            {activeSelection && (
-                <>
-                    {/* Mobile Backdrop */}
-                    <div
-                        className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 lg:hidden animate-in fade-in duration-200"
-                        onClick={() => setActiveSelection(null)}
-                    />
-
-                    {/* Container: Responsive Bottom Sheet on Mobile, Static Card on Desktop */}
-                    <div
-                        className={`fixed inset-x-0 bottom-0 z-50 rounded-t-3xl border-t shadow-2xl max-h-[85vh] overflow-y-auto p-4 sm:p-5 animate-in slide-in-from-bottom duration-300 lg:static lg:w-full lg:rounded-2xl lg:border lg:shadow-2xl lg:z-auto lg:animate-in lg:slide-in-from-bottom-4 pb-safe ${
-                            isDark ? 'bg-slate-900 border-slate-700/80 text-white' : 'bg-white border-slate-300 text-slate-800'
-                        }`}
-                    >
-                        {/* Drag Indicator Pill for Mobile */}
-                        <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto mb-3 lg:hidden shrink-0" />
-
-                        {/* Header */}
-                        <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-                            <div className="flex items-center gap-2.5">
-                                <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center font-bold">
-                                    <MapPin className="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-sm sm:text-base flex items-center gap-2">
-                                        <span>{activeSelection.label || (isEn ? 'Pinned Location' : 'Titik Lokasi Denah')}</span>
-                                        <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-normal">
-                                            {activeSelection.resort} • X: {activeSelection.x.toFixed(1)}%, Y: {activeSelection.y.toFixed(1)}%
-                                        </span>
-                                    </h3>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                                        {activeSelection.issues.length > 0
-                                            ? `${activeSelection.issues.length} ${isEn ? 'issue(s) at this location' : 'isu aktif di titik ini'}`
-                                            : isEn
-                                            ? 'No issues attached yet. Choose an action below.'
-                                            : 'Belum ada isu yang ditautkan ke titik ini.'}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        onOpenCreateIssue({
-                                            resort: activeSelection.resort,
-                                            x: activeSelection.x,
-                                            y: activeSelection.y,
-                                            label: customPinLabel.trim() || activeSelection.label,
-                                        });
-                                        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-                                            setActiveSelection(null);
-                                        }
-                                    }}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
-                                >
-                                    <Plus className="w-3.5 h-3.5" />
-                                    <span>{isEn ? 'Report Here' : 'Buat Isu di Titik Ini'}</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setActiveSelection(null)}
-                                    className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 flex items-center justify-center transition-colors"
-                                >
-                                    <X className="w-4 h-4" />
-                                </button>
-                            </div>
-                        </div>
-
-                    {/* Content Grid */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-4">
-                        {/* COLUMN 1: ISSUES AT THIS POINT */}
-                        <div className="space-y-3">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center justify-between">
-                                <span className="flex items-center gap-1.5">
-                                    <Layers className="w-3.5 h-3.5 text-sky-500" />
-                                    {isEn ? 'Active Issues at This Point' : 'Daftar Isu di Titik Ini'} ({activeSelection.issues.length})
-                                </span>
-                            </h4>
-
-                            {activeSelection.issues.length === 0 ? (
-                                <div className="p-6 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80 text-center">
-                                    <p className="text-xs text-slate-500">
-                                        {isEn
-                                            ? 'No active issues at this coordinate. You can link an existing issue on the right or report a new one.'
-                                            : 'Belum ada tiket aktif di titik ini. Anda dapat menautkan tiket di sebelah kanan atau membuat laporan baru.'}
-                                    </p>
-                                </div>
-                            ) : (
-                                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                                    {activeSelection.issues.map((iss) => (
-                                        <div
-                                            key={iss.id}
-                                            className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all flex items-start justify-between gap-3"
-                                        >
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                    <span className="font-mono text-xs font-black text-amber-500">
-                                                        #{iss.issue_code || iss.id}
-                                                    </span>
-                                                    <span
-                                                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                                                            iss.status === 'open'
-                                                                ? 'bg-rose-500/20 text-rose-500 border border-rose-500/40'
-                                                                : iss.status === 'in_progress'
-                                                                ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40'
-                                                                : iss.status === 'pending'
-                                                                ? 'bg-sky-500/20 text-sky-500 border border-sky-500/40'
-                                                                : 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/40'
-                                                        }`}
-                                                    >
-                                                        {iss.status}
-                                                    </span>
-                                                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                                                        {Array.isArray(iss.target_departments)
-                                                            ? iss.target_departments.join(', ')
-                                                            : iss.department}
-                                                    </span>
-                                                </div>
-                                                <h5 className="text-xs font-bold text-slate-900 dark:text-white truncate">{iss.title}</h5>
-                                                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                                                    📍 {iss.location}
-                                                </p>
-                                                {iss.claimed_by_name && (
-                                                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
-                                                        <User className="w-3 h-3" />
-                                                        <span>{iss.claimed_by_name}</span>
-                                                    </p>
-                                                )}
-                                            </div>
-
-                                            <div className="flex flex-col gap-1.5 shrink-0">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        onSelectIssue(iss);
-                                                        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-                                                            setActiveSelection(null);
-                                                        }
-                                                    }}
-                                                    className="px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-xs font-semibold transition-colors"
-                                                >
-                                                    {isEn ? 'Details' : 'Lihat'}
-                                                </button>
-                                                {(isAdmin || (userDept && (Array.isArray(iss.target_departments) ? iss.target_departments.includes(userDept) : iss.department === userDept))) && (
-                                                    <button
-                                                        type="button"
-                                                        disabled={isPinningLoading}
-                                                        onClick={() => handleDetachPin(iss.id)}
-                                                        className="px-2 py-0.5 rounded text-[10px] text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                                                        title="Lepas pin dari isu ini"
-                                                    >
-                                                        <Unlink className="w-3 h-3 inline mr-0.5" />
-                                                        {isEn ? 'Unpin' : 'Lepas'}
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* COLUMN 2: LINK UNMAPPED ISSUES TO THIS POINT */}
-                        <div className="space-y-3">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center justify-between">
-                                <span className="flex items-center gap-1.5">
-                                    <LinkIcon className="w-3.5 h-3.5 text-amber-500" />
-                                    {isEn ? 'Link Unmapped Issues' : 'Tautkan Isu Tanpa Pin ke Titik Ini'}
-                                </span>
-                                <span className="text-[10px] font-normal text-slate-400">
-                                    {isAdmin
-                                        ? isEn ? 'Admin (All Depts)' : 'Admin (Semua Dept)'
-                                        : `${isEn ? 'Dept:' : 'Dept:'} ${userDept || 'Umum'}`}
-                                </span>
-                            </h4>
-
-                            {/* Search unmapped issues */}
-                            <div className="relative">
-                                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                                <input
-                                    type="text"
-                                    value={unmappedSearch}
-                                    onChange={(e) => setUnmappedSearch(e.target.value)}
-                                    placeholder={
-                                        isEn
-                                            ? 'Search unmapped tickets by code, title, or location...'
-                                            : 'Cari tiket tanpa pin (kode, judul, lokasi)...'
-                                    }
-                                    className="w-full text-xs rounded-xl pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
-                                />
-                            </div>
-
-                            {/* Optional label input */}
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="text"
-                                    value={customPinLabel}
-                                    onChange={(e) => setCustomPinLabel(e.target.value)}
-                                    placeholder={isEn ? 'Optional custom label (e.g., Villa 05)...' : 'Label lokasi (opsional, cth: Villa 05)...'}
-                                    className="w-full text-xs rounded-xl px-3 py-1 bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-amber-500"
-                                />
-                            </div>
-
-                            {/* Unmapped list */}
-                            <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
-                                {unmappedIssues.length === 0 ? (
-                                    <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80 text-center">
-                                        <Check className="w-4 h-4 text-emerald-500 mx-auto mb-1" />
-                                        <p className="text-xs text-slate-500">
-                                            {isEn
-                                                ? 'No unmapped active issues for your department.'
-                                                : 'Tidak ada tiket tanpa pin untuk departemen Anda.'}
-                                        </p>
-                                    </div>
-                                ) : (
-                                    unmappedIssues.map((iss) => (
-                                        <div
-                                            key={iss.id}
-                                            className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 hover:border-slate-300 dark:hover:border-slate-700 transition-all"
-                                        >
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-1.5">
-                                                    <span className="font-mono text-[11px] font-bold text-amber-500">
-                                                        #{iss.issue_code || iss.id}
-                                                    </span>
-                                                    <span className="text-xs font-semibold text-slate-900 dark:text-white truncate">
-                                                        {iss.title}
-                                                    </span>
-                                                </div>
-                                                <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                                                    📍 {iss.location} • {iss.reporter_name}
-                                                </div>
-                                            </div>
-
-                                            <button
-                                                type="button"
-                                                disabled={isPinningLoading}
-                                                onClick={() => handleAttachIssue(iss.id)}
-                                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] transition-colors shrink-0 disabled:opacity-50 cursor-pointer"
-                                            >
-                                                <LinkIcon className="w-3 h-3" />
-                                                <span>{isEn ? 'Attach' : 'Tautkan'}</span>
-                                            </button>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </>
-        )}
         </div>
     );
 }
