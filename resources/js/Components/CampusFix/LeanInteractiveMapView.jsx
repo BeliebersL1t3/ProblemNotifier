@@ -15,6 +15,7 @@ import {
     X,
     Link as LinkIcon,
     Unlink,
+    Trash2,
     Compass,
     Check,
     PanelRightClose,
@@ -296,8 +297,12 @@ export default function LeanInteractiveMapView({
             return;
         }
 
-        // Only drop draft pin if in 'pin' mode
+        // If not in 'pin' mode, clicking the empty map canvas dismisses active pin selection
         if (interactionMode !== 'pin') {
+            if (activeSelection) {
+                setActiveSelection(null);
+                setCustomPinLabel('');
+            }
             return;
         }
 
@@ -705,12 +710,12 @@ export default function LeanInteractiveMapView({
 
                 {/* Right: Counter Stats */}
                 <div className="flex items-center gap-3 text-xs font-semibold">
-                    <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                    <span className={`flex items-center gap-1.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
                         <MapPin className="w-3.5 h-3.5" />
                         <strong>{pinnedIssues.length}</strong> {isEn ? 'pinned on map' : 'di peta'}
                     </span>
-                    <span className="text-slate-300 dark:text-slate-700">•</span>
-                    <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                    <span className={isDark ? 'text-slate-700' : 'text-slate-300'}>•</span>
+                    <span className={`flex items-center gap-1.5 ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
                         <AlertCircle className="w-3.5 h-3.5" />
                         <strong>{unmappedIssues.length}</strong> {isEn ? 'unmapped' : 'belum ada pin'}
                     </span>
@@ -724,7 +729,7 @@ export default function LeanInteractiveMapView({
                         isDark ? 'bg-slate-900/90 border-slate-700/80 text-white' : 'bg-white border-slate-200 text-slate-800'
                     }`}
                 >
-                    <span className="font-bold flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                    <span className={`font-bold flex items-center gap-1.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
                         <Calendar className="w-3.5 h-3.5" />
                         {isEn ? 'Date Range:' : 'Rentang Tanggal:'}
                     </span>
@@ -733,14 +738,22 @@ export default function LeanInteractiveMapView({
                             type="date"
                             value={customStartDate}
                             onChange={(e) => setCustomStartDate(e.target.value)}
-                            className="bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs"
+                            className={`rounded-lg px-2.5 py-1 text-xs border ${
+                                isDark
+                                    ? 'bg-slate-800 border-slate-700 text-white'
+                                    : 'bg-slate-100 border-slate-300 text-slate-900'
+                            }`}
                         />
                         <span className="text-slate-400">&rarr;</span>
                         <input
                             type="date"
                             value={customEndDate}
                             onChange={(e) => setCustomEndDate(e.target.value)}
-                            className="bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs"
+                            className={`rounded-lg px-2.5 py-1 text-xs border ${
+                                isDark
+                                    ? 'bg-slate-800 border-slate-700 text-white'
+                                    : 'bg-slate-100 border-slate-300 text-slate-900'
+                            }`}
                         />
                     </div>
                     {(customStartDate || customEndDate) && (
@@ -750,7 +763,9 @@ export default function LeanInteractiveMapView({
                                 setCustomStartDate('');
                                 setCustomEndDate('');
                             }}
-                            className="text-slate-500 hover:text-slate-800 dark:hover:text-white underline text-[11px]"
+                            className={`underline text-[11px] ${
+                                isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-800'
+                            }`}
                         >
                             Reset
                         </button>
@@ -851,15 +866,27 @@ export default function LeanInteractiveMapView({
                         {/* DRAFT PIN (If user dropped a pin but haven't linked it yet) */}
                         {activeSelection && activeSelection.type === 'draft' && (
                             <div
-                                className="absolute -translate-x-1/2 -translate-y-full pointer-events-none z-40 transition-all duration-200"
+                                className="absolute -translate-x-1/2 -translate-y-full pointer-events-auto z-40 transition-all duration-200"
                                 style={{ left: `${activeSelection.x}%`, top: `${activeSelection.y}%` }}
                             >
                                 <div className="flex flex-col items-center animate-bounce">
-                                    <div className="px-2.5 py-1 rounded-lg bg-amber-500 text-slate-950 font-black text-[11px] shadow-2xl border border-white flex items-center gap-1 whitespace-nowrap">
-                                        <MapPin className="w-3.5 h-3.5" />
+                                    <div className="px-2.5 py-1 rounded-lg bg-amber-500 text-slate-950 font-black text-[11px] shadow-2xl border border-white flex items-center gap-1.5 whitespace-nowrap">
+                                        <MapPin className="w-3.5 h-3.5 shrink-0" />
                                         <span>
                                             {isEn ? 'New Pin' : 'Pin Baru'} ({activeSelection.x}%, {activeSelection.y}%)
                                         </span>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setActiveSelection(null);
+                                                setCustomPinLabel('');
+                                            }}
+                                            className="ml-0.5 p-0.5 rounded-full hover:bg-black/20 text-slate-950 transition-colors cursor-pointer"
+                                            title={isEn ? 'Cancel / Remove pin' : 'Batal / Hilangkan pin baru'}
+                                        >
+                                            <X className="w-3.5 h-3.5 stroke-[2.5]" />
+                                        </button>
                                     </div>
                                     <div className="w-2.5 h-2.5 rotate-45 bg-amber-500 -mt-1 shadow-md border-r border-b border-white" />
                                 </div>
@@ -939,34 +966,45 @@ export default function LeanInteractiveMapView({
                             }`}
                         >
                             {/* Drag Indicator Pill for Mobile */}
-                            <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto my-2.5 lg:hidden shrink-0" />
+                            <div className={`w-12 h-1.5 rounded-full mx-auto my-2.5 lg:hidden shrink-0 ${
+                                isDark ? 'bg-slate-700' : 'bg-slate-300'
+                            }`} />
 
                             {activeSelection ? (
                                 /* PIN ACTION VIEW (Directly in Sidebar) */
                                 <div className="flex flex-col h-full overflow-hidden">
                                     {/* Header */}
-                                    <div className="p-3 border-b border-slate-200 dark:border-slate-800 space-y-2.5 shrink-0 bg-slate-50/90 dark:bg-slate-950/70">
+                                    <div className={`p-3 border-b space-y-2.5 shrink-0 ${
+                                        isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+                                    }`}>
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-2 min-w-0">
                                                 <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-500 flex items-center justify-center font-bold shrink-0">
                                                     <MapPin className="w-4 h-4" />
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <h4 className="font-bold text-xs truncate text-slate-900 dark:text-white">
+                                                    <h4 className={`font-bold text-xs truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                                         {activeSelection.type === 'draft'
                                                             ? isEn ? 'New Pin Dropped' : 'Titik Pin Baru'
                                                             : isEn ? 'Selected Pin' : 'Titik Pin Terpilih'}
                                                     </h4>
-                                                    <span className="text-[10px] font-mono text-slate-400">
+                                                    <span className={`text-[10px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                                         {activeSelection.resort} • X: {activeSelection.x.toFixed(1)}%, Y: {activeSelection.y.toFixed(1)}%
                                                     </span>
                                                 </div>
                                             </div>
                                             <button
                                                 type="button"
-                                                onClick={() => setActiveSelection(null)}
-                                                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors shrink-0"
-                                                title={isEn ? 'Close & return to issue list' : 'Tutup & kembali ke daftar isu'}
+                                                onClick={() => {
+                                                    setActiveSelection(null);
+                                                    setCustomPinLabel('');
+                                                }}
+                                                className={`p-1 rounded-lg transition-colors shrink-0 ${
+                                                    isDark
+                                                        ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                                        : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200'
+                                                }`}
+                                                title={isEn ? 'Close & return to issue list' : 'Tutup & batalkan pin'}
                                             >
                                                 <X className="w-4 h-4" />
                                             </button>
@@ -978,44 +1016,75 @@ export default function LeanInteractiveMapView({
                                             value={customPinLabel}
                                             onChange={(e) => setCustomPinLabel(e.target.value)}
                                             placeholder={isEn ? 'Location label (e.g. Villa 05)...' : 'Label lokasi (cth: Villa 05, Pool)...'}
-                                            className="w-full text-xs rounded-xl px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                            className={`w-full text-xs rounded-xl px-2.5 py-1.5 border focus:outline-none focus:ring-1 focus:ring-amber-500 ${
+                                                isDark
+                                                    ? 'bg-slate-900 border-slate-700 text-white placeholder:text-slate-500'
+                                                    : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400'
+                                            }`}
                                         />
 
-                                        {/* Quick Action: Create New Issue at This Coordinate */}
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                onOpenCreateIssue({
-                                                    resort: activeSelection.resort,
-                                                    x: activeSelection.x,
-                                                    y: activeSelection.y,
-                                                    label: customPinLabel.trim() || activeSelection.label,
-                                                });
-                                                if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-                                                    setShowSidebar(false);
-                                                }
-                                            }}
-                                            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm hover:shadow-emerald-600/30 transition-all cursor-pointer"
-                                        >
-                                            <Plus className="w-3.5 h-3.5" />
-                                            <span>{isEn ? 'Report New Issue Here' : '+ Buat Isu Baru di Titik Ini'}</span>
-                                        </button>
+                                        {/* Action Buttons: Create Issue & Cancel Pin */}
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    onOpenCreateIssue({
+                                                        resort: activeSelection.resort,
+                                                        x: activeSelection.x,
+                                                        y: activeSelection.y,
+                                                        label: customPinLabel.trim() || activeSelection.label,
+                                                    });
+                                                    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                                                        setShowSidebar(false);
+                                                    }
+                                                }}
+                                                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm hover:shadow-emerald-600/30 transition-all cursor-pointer"
+                                            >
+                                                <Plus className="w-3.5 h-3.5" />
+                                                <span>{isEn ? 'Report New Issue Here' : '+ Buat Isu Baru'}</span>
+                                            </button>
+
+                                            {activeSelection.type === 'draft' && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setActiveSelection(null);
+                                                        setCustomPinLabel('');
+                                                    }}
+                                                    className={`px-2.5 py-2 rounded-xl border text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
+                                                        isDark
+                                                            ? 'border-slate-700 bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 hover:border-rose-500/30'
+                                                            : 'border-slate-300 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-600 hover:border-rose-300'
+                                                    }`}
+                                                    title={isEn ? 'Cancel & remove this pin' : 'Batal & hilangkan pin ini'}
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                                                    <span>{isEn ? 'Cancel' : 'Batal Pin'}</span>
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {/* Scrollable Content: Issues at this point + Link Unmapped Issues */}
                                     <div className="flex-1 overflow-y-auto p-3 space-y-4">
                                         {/* Section 1: Issues already at this point */}
                                         <div className="space-y-2">
-                                            <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
-                                                <span className="flex items-center gap-1.5 uppercase text-[11px] tracking-wider text-slate-400">
+                                            <div className={`flex items-center justify-between text-xs font-bold ${
+                                                isDark ? 'text-slate-300' : 'text-slate-700'
+                                            }`}>
+                                                <span className={`flex items-center gap-1.5 uppercase text-[11px] tracking-wider ${
+                                                    isDark ? 'text-slate-400' : 'text-slate-500'
+                                                }`}>
                                                     <Layers className="w-3.5 h-3.5 text-sky-500" />
                                                     {isEn ? 'Issues at this point' : 'Isu di Titik Ini'} ({activeSelection.issues.length})
                                                 </span>
                                             </div>
 
                                             {activeSelection.issues.length === 0 ? (
-                                                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-dashed border-slate-200 dark:border-slate-800 text-center">
-                                                    <p className="text-[11px] text-slate-400">
+                                                <div className={`p-3 rounded-xl border border-dashed text-center ${
+                                                    isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-200'
+                                                }`}>
+                                                    <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                                         {isEn
                                                             ? 'No issues linked yet. Choose an unmapped ticket below to link it here.'
                                                             : 'Belum ada tiket tertaut. Pilih tiket tanpa pin di bawah untuk menautkannya ke titik ini.'}
@@ -1025,7 +1094,9 @@ export default function LeanInteractiveMapView({
                                                 activeSelection.issues.map((iss) => (
                                                     <div
                                                         key={iss.id}
-                                                        className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-1.5"
+                                                        className={`p-2.5 rounded-xl border space-y-1.5 ${
+                                                            isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'
+                                                        }`}
                                                     >
                                                         <div className="flex items-center justify-between gap-2">
                                                             <span className="font-mono text-xs font-bold text-amber-500">
@@ -1045,13 +1116,15 @@ export default function LeanInteractiveMapView({
                                                                 {iss.status}
                                                             </span>
                                                         </div>
-                                                        <h5 className="text-xs font-bold truncate text-slate-900 dark:text-white">
+                                                        <h5 className={`text-xs font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                                             {iss.title}
                                                         </h5>
-                                                        <p className="text-[11px] text-slate-400 truncate">
+                                                        <p className={`text-[11px] truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                                             📍 {iss.location}
                                                         </p>
-                                                        <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-slate-800/80 text-[11px]">
+                                                        <div className={`flex items-center justify-between pt-1 border-t text-[11px] ${
+                                                            isDark ? 'border-slate-800/80' : 'border-slate-200'
+                                                        }`}>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => {
@@ -1082,13 +1155,15 @@ export default function LeanInteractiveMapView({
                                         </div>
 
                                         {/* Section 2: Link unmapped tickets to this coordinate */}
-                                        <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                                        <div className={`space-y-2 pt-2 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                                             <div className="flex items-center justify-between">
-                                                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                                                <span className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+                                                    isDark ? 'text-slate-300' : 'text-slate-600'
+                                                }`}>
                                                     <LinkIcon className="w-3.5 h-3.5 text-amber-500" />
                                                     {isEn ? 'Link Ticket to Here' : 'Tautkan Tiket ke Sini'}
                                                 </span>
-                                                <span className="text-[10px] text-slate-400">
+                                                <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                                     {unmappedIssues.length} {isEn ? 'available' : 'tersedia'}
                                                 </span>
                                             </div>
@@ -1101,32 +1176,40 @@ export default function LeanInteractiveMapView({
                                                     value={unmappedSearch}
                                                     onChange={(e) => setUnmappedSearch(e.target.value)}
                                                     placeholder={isEn ? 'Search ticket to link...' : 'Cari tiket untuk ditautkan...'}
-                                                    className="w-full text-xs rounded-xl pl-8 pr-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                                    className={`w-full text-xs rounded-xl pl-8 pr-3 py-1.5 border focus:outline-none focus:ring-1 focus:ring-amber-500 ${
+                                                        isDark
+                                                            ? 'bg-slate-900 border-slate-700 text-white placeholder:text-slate-500'
+                                                            : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400'
+                                                    }`}
                                                 />
                                             </div>
 
                                             {/* List unmapped issues */}
                                             <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
                                                 {unmappedIssues.length === 0 ? (
-                                                    <p className="text-[11px] text-center text-slate-400 py-3">
+                                                    <p className={`text-[11px] text-center py-3 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                                         {isEn ? 'No unmapped tickets found.' : 'Tidak ada tiket tanpa pin ditemukan.'}
                                                     </p>
                                                 ) : (
                                                     unmappedIssues.map((iss) => (
                                                         <div
                                                             key={iss.id}
-                                                            className="p-2 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2"
+                                                            className={`p-2 rounded-xl border flex items-center justify-between gap-2 ${
+                                                                isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'
+                                                            }`}
                                                         >
                                                             <div className="min-w-0 flex-1">
                                                                 <div className="flex items-center gap-1.5">
                                                                     <span className="font-mono text-[10px] font-bold text-amber-500">
                                                                         #{iss.issue_code || iss.id}
                                                                     </span>
-                                                                    <span className="text-xs font-semibold truncate text-slate-900 dark:text-white">
+                                                                    <span className={`text-xs font-semibold truncate ${
+                                                                        isDark ? 'text-white' : 'text-slate-900'
+                                                                    }`}>
                                                                         {iss.title}
                                                                     </span>
                                                                 </div>
-                                                                <p className="text-[10px] text-slate-400 truncate">
+                                                                <p className={`text-[10px] truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                                                     📍 {iss.location}
                                                                 </p>
                                                             </div>
@@ -1150,16 +1233,24 @@ export default function LeanInteractiveMapView({
                                 /* NORMAL TICKET DRAWER VIEW */
                                 <div className="flex flex-col h-full overflow-hidden">
                                     {/* Sidebar Header & Tab Switcher */}
-                                    <div className="p-3 border-b border-slate-200 dark:border-slate-800 space-y-2.5 shrink-0">
+                                    <div className={`p-3 border-b space-y-2.5 shrink-0 ${
+                                        isDark ? 'border-slate-800' : 'border-slate-200'
+                                    }`}>
                                         <div className="flex items-center justify-between">
-                                            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                                            <h3 className={`font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 ${
+                                                isDark ? 'text-slate-400' : 'text-slate-600'
+                                            }`}>
                                                 <Layers className="w-4 h-4 text-emerald-500" />
                                                 <span>{isEn ? 'Resort Issues Drawer' : 'Daftar Isu Denah'}</span>
                                             </h3>
                                             <button
                                                 type="button"
                                                 onClick={() => setShowSidebar(false)}
-                                                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                className={`p-1 rounded-lg transition-colors ${
+                                                    isDark
+                                                        ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                                        : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+                                                }`}
                                                 title="Tutup Panel"
                                             >
                                                 <X className="w-4 h-4" />
@@ -1167,14 +1258,18 @@ export default function LeanInteractiveMapView({
                                         </div>
 
                                         {/* Tab Switcher: Belum Ada Pin vs Sudah di Peta */}
-                                        <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                                        <div className={`flex items-center p-1 rounded-xl border ${
+                                            isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+                                        }`}>
                                             <button
                                                 type="button"
                                                 onClick={() => setSidebarTab('unmapped')}
                                                 className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                                                     sidebarTab === 'unmapped'
                                                         ? 'bg-amber-500 text-slate-950 shadow-xs'
-                                                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                                        : isDark
+                                                        ? 'text-slate-400 hover:text-white'
+                                                        : 'text-slate-600 hover:text-slate-900'
                                                 }`}
                                             >
                                                 <span>{isEn ? 'Unmapped' : 'Belum Ada Pin'}</span>
@@ -1188,7 +1283,9 @@ export default function LeanInteractiveMapView({
                                                 className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                                                     sidebarTab === 'pinned'
                                                         ? 'bg-emerald-600 text-white shadow-xs'
-                                                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                                        : isDark
+                                                        ? 'text-slate-400 hover:text-white'
+                                                        : 'text-slate-600 hover:text-slate-900'
                                                 }`}
                                             >
                                                 <span>{isEn ? 'On Map' : 'Sudah di Peta'}</span>
@@ -1210,7 +1307,11 @@ export default function LeanInteractiveMapView({
                                                         ? isEn ? 'Search unmapped issues...' : 'Cari tiket tanpa pin...'
                                                         : isEn ? 'Search pinned issues...' : 'Cari isu di peta...'
                                                 }
-                                                className="w-full text-xs rounded-xl pl-8 pr-3 py-1.5 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                                className={`w-full text-xs rounded-xl pl-8 pr-3 py-1.5 border focus:outline-none focus:ring-1 focus:ring-emerald-500 ${
+                                                    isDark
+                                                        ? 'bg-slate-950 border-slate-800 text-white placeholder:text-slate-500'
+                                                        : 'bg-slate-100 border-slate-200 text-slate-900 placeholder:text-slate-400'
+                                                }`}
                                             />
                                         </div>
                                     </div>
@@ -1221,7 +1322,7 @@ export default function LeanInteractiveMapView({
                                             unmappedIssues.length === 0 ? (
                                                 <div className="py-12 text-center text-slate-400 space-y-1">
                                                     <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
-                                                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                    <p className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                                                         {isEn ? 'All issues mapped!' : 'Semua isu sudah memiliki pin!'}
                                                     </p>
                                                     <p className="text-[11px] text-slate-500">
@@ -1234,7 +1335,7 @@ export default function LeanInteractiveMapView({
                                                         key={iss.id}
                                                         className={`p-3 rounded-xl border transition-all ${
                                                             pendingIssueToPin?.id === iss.id
-                                                                ? 'border-amber-500 bg-amber-50/70 dark:bg-amber-950/40 ring-2 ring-amber-400'
+                                                                ? `border-amber-500 ring-2 ring-amber-400 ${isDark ? 'bg-amber-950/40' : 'bg-amber-50/70'}`
                                                                 : isDark
                                                                 ? 'bg-slate-950/70 border-slate-800 hover:border-slate-700'
                                                                 : 'bg-slate-50 border-slate-200 hover:border-slate-300'
@@ -1249,7 +1350,7 @@ export default function LeanInteractiveMapView({
                                                                     iss.status === 'open'
                                                                         ? 'bg-rose-500/20 text-rose-500 border border-rose-500/30'
                                                                         : iss.status === 'in_progress'
-                                                                        ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                                                                        ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30'
                                                                         : 'bg-sky-500/20 text-sky-500 border border-sky-500/30'
                                                                 }`}
                                                             >
@@ -1257,14 +1358,20 @@ export default function LeanInteractiveMapView({
                                                             </span>
                                                         </div>
 
-                                                        <h4 className="text-xs font-bold truncate text-slate-900 dark:text-white mb-0.5">
+                                                        <h4 className={`text-xs font-bold truncate mb-0.5 ${
+                                                            isDark ? 'text-white' : 'text-slate-900'
+                                                        }`}>
                                                             {iss.title}
                                                         </h4>
-                                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mb-2">
+                                                        <p className={`text-[11px] truncate mb-2 ${
+                                                            isDark ? 'text-slate-400' : 'text-slate-500'
+                                                        }`}>
                                                             📍 {iss.location}
                                                         </p>
 
-                                                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/80">
+                                                        <div className={`flex items-center justify-between gap-2 pt-1 border-t ${
+                                                            isDark ? 'border-slate-800/80' : 'border-slate-200'
+                                                        }`}>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => {
@@ -1317,7 +1424,7 @@ export default function LeanInteractiveMapView({
                                             pinnedIssues.length === 0 ? (
                                                 <div className="py-12 text-center text-slate-400 space-y-1">
                                                     <MapPin className="w-8 h-8 text-slate-400 mx-auto mb-2 opacity-60" />
-                                                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                    <p className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                                                         {isEn ? 'No pinned issues yet' : 'Belum ada isu yang dipetakan'}
                                                     </p>
                                                     <p className="text-[11px] text-slate-500">
@@ -1356,14 +1463,20 @@ export default function LeanInteractiveMapView({
                                                             </span>
                                                         </div>
 
-                                                        <h4 className="text-xs font-bold truncate text-slate-900 dark:text-white mb-0.5">
+                                                        <h4 className={`text-xs font-bold truncate mb-0.5 ${
+                                                            isDark ? 'text-white' : 'text-slate-900'
+                                                        }`}>
                                                             {iss.title}
                                                         </h4>
-                                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mb-2">
+                                                        <p className={`text-[11px] truncate mb-2 ${
+                                                            isDark ? 'text-slate-400' : 'text-slate-500'
+                                                        }`}>
                                                             📍 {iss.map_label || iss.location}
                                                         </p>
 
-                                                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/80">
+                                                        <div className={`flex items-center justify-between gap-2 pt-1 border-t ${
+                                                            isDark ? 'border-slate-800/80' : 'border-slate-200'
+                                                        }`}>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => {
