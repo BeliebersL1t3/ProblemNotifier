@@ -1699,58 +1699,6 @@ export default function LeanIndex({
             {/* MAIN CONTENT CONTAINER */}
             <main className="w-full px-4 sm:px-6 lg:px-8 pt-4 flex-1">
 
-                {/* Mobile View Switcher (< 768px) */}
-                <div className="md:hidden flex items-center justify-between p-1 rounded-xl border border-slate-700/60 bg-slate-900/60 mb-3.5">
-                    <button
-                        type="button"
-                        onClick={() => handleViewModeChange('cards')}
-                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-all ${
-                            viewMode === 'cards'
-                                ? 'bg-emerald-600 text-white shadow-xs'
-                                : 'text-slate-400 hover:text-white'
-                        }`}
-                    >
-                        <LayoutGrid className="w-3.5 h-3.5" />
-                        <span>{isEn ? 'Cards' : 'Kartu'}</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => handleViewModeChange('table')}
-                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-all ${
-                            viewMode === 'table'
-                                ? 'bg-emerald-600 text-white shadow-xs'
-                                : 'text-slate-400 hover:text-white'
-                        }`}
-                    >
-                        <Table className="w-3.5 h-3.5" />
-                        <span>{isEn ? 'Table' : 'Tabel'}</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => handleViewModeChange('map')}
-                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-all ${
-                            viewMode === 'map'
-                                ? 'bg-amber-600 text-slate-950 font-black shadow-xs'
-                                : 'text-amber-400 hover:text-white'
-                        }`}
-                    >
-                        <MapPin className="w-3.5 h-3.5" />
-                        <span>{isEn ? 'Map' : 'Peta'}</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => handleViewModeChange('analytics')}
-                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-all ${
-                            viewMode === 'analytics'
-                                ? 'bg-emerald-600 text-white shadow-xs'
-                                : 'text-slate-400 hover:text-white'
-                        }`}
-                    >
-                        <BarChart3 className="w-3.5 h-3.5" />
-                        <span>{isEn ? 'Stats' : 'Analisis'}</span>
-                    </button>
-                </div>
-
                 {/* OUTBOX BANNER: TICKETS QUEUED IN PHONE STORAGE */}
                 {outboxCount > 0 && (
                     <div className={`mb-4 p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-md transition-all liquid-glass-card liquid-glass-tint-amber ${
@@ -1915,8 +1863,48 @@ export default function LeanIndex({
                             </select>
                         </div>
 
-                        {/* Actions group: Desktop Grid Switcher, Desktop New Report & Column Customizer */}
+                        {/* Actions group: Desktop View Mode Toggle (Cards/Table), Desktop Grid Switcher, Desktop New Report & Column Customizer */}
                         <div className="w-full sm:w-auto md:ml-auto flex items-center justify-end gap-2">
+                            {/* Desktop View Switcher between Cards and Table inside Dashboard */}
+                            <div
+                                className={`hidden md:inline-flex items-center gap-0.5 p-1 rounded-xl border shadow-sm liquid-glass-subtle shrink-0 ${
+                                    isDark ? 'text-slate-300' : 'text-slate-700'
+                                }`}
+                                role="group"
+                                aria-label="Tampilan Kartu atau Tabel"
+                            >
+                                <button
+                                    type="button"
+                                    onClick={() => handleViewModeChange('cards')}
+                                    className={`px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                        viewMode === 'cards'
+                                            ? 'bg-emerald-600 text-white shadow-xs keep-white'
+                                            : isDark
+                                            ? 'text-slate-400 hover:text-white'
+                                            : 'text-slate-600 hover:text-slate-900'
+                                    }`}
+                                    title={isEn ? 'Cards View' : 'Tampilan Kartu'}
+                                >
+                                    <LayoutGrid className="w-3.5 h-3.5" />
+                                    <span>{isEn ? 'Cards' : 'Kartu'}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleViewModeChange('table')}
+                                    className={`px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                        viewMode === 'table'
+                                            ? 'bg-emerald-600 text-white shadow-xs keep-white'
+                                            : isDark
+                                            ? 'text-slate-400 hover:text-white'
+                                            : 'text-slate-600 hover:text-slate-900'
+                                    }`}
+                                    title={isEn ? 'ERP Spreadsheet Table View' : 'Tampilan Tabel ERP'}
+                                >
+                                    <Table className="w-3.5 h-3.5" />
+                                    <span>{isEn ? 'Table' : 'Tabel'}</span>
+                                </button>
+                            </div>
+
                             {/* Card Grid Density Switcher (Desktop, Cards View Only) */}
                             {viewMode === 'cards' && (
                                 <div
@@ -5421,8 +5409,10 @@ export default function LeanIndex({
             <MobileBottomNav
                 currentTab={viewMode}
                 onReport={() => setShowReportModal(true)}
+                onSelectDashboard={() => handleViewModeChange('cards')}
                 onSelectCards={() => handleViewModeChange('cards')}
                 onSelectTable={() => handleViewModeChange('table')}
+                onSelectMap={() => handleViewModeChange('map')}
                 onSelectAnalytics={() => handleViewModeChange('analytics')}
             />
 

@@ -202,7 +202,7 @@ export function LeanHeader({
                         </div>
                     </Link>
 
-                    {/* View Mode Switcher (Tabel ERP / Kartu / Analisis) */}
+                    {/* View Mode Switcher (Dashboard / Peta / Analisis) */}
                     <div
                         className={`hidden md:flex items-center p-0.5 sm:p-1 rounded-xl border shrink-0 liquid-glass-subtle ${
                             isDark ? 'liquid-glass-dark' : 'liquid-glass-light'
@@ -210,22 +210,18 @@ export function LeanHeader({
                     >
                         <button
                             type="button"
-                            onClick={() => handleViewSwitch('table')}
-                            className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewBtnClass('table')}`}
-                            title={isEn ? 'ERP Spreadsheet Table View' : 'Tampilan Tabel Spreadsheet ERP'}
-                        >
-                            <Table className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">{isEn ? 'ERP Table' : 'Tabel ERP'}</span>
-                            <span className="sm:hidden">{isEn ? 'Table' : 'Tabel'}</span>
-                        </button>
-                        <button
-                            type="button"
                             onClick={() => handleViewSwitch('cards')}
-                            className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewBtnClass('cards')}`}
-                            title={isEn ? 'Visual Card View' : 'Tampilan Kartu Visual'}
+                            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                isDashboard && (viewMode === 'cards' || viewMode === 'table')
+                                    ? 'bg-emerald-600 text-white shadow-sm keep-white ring-1 ring-white/25'
+                                    : isDark
+                                    ? 'text-slate-300 hover:text-white hover:bg-white/10'
+                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                            }`}
+                            title={isEn ? 'Dashboard (Issues Overview)' : 'Dashboard (Daftar Isu)'}
                         >
                             <LayoutGrid className="w-3.5 h-3.5" />
-                            <span>{isEn ? 'Cards' : 'Kartu'}</span>
+                            <span>Dashboard</span>
                         </button>
                         <button
                             type="button"

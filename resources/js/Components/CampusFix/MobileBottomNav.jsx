@@ -1,6 +1,6 @@
 import React from 'react';
 import { router } from '@inertiajs/react';
-import { LayoutGrid, Table, Plus, BarChart3, User } from 'lucide-react';
+import { LayoutGrid, MapPin, Plus, BarChart3, User } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useLeanTheme } from '@/hooks/useLeanTheme';
 
@@ -10,6 +10,7 @@ export function MobileBottomNav({
     onSelectCards = null,
     onSelectTable = null,
     onSelectDashboard = null,
+    onSelectMap = null,
     onSelectAnalytics = null,
 }) {
     const { t, lang } = useLanguage();
@@ -18,18 +19,18 @@ export function MobileBottomNav({
 
     const handleNav = (e, item) => {
         e.preventDefault();
-        if (item.id === 'cards') {
-            if (typeof onSelectCards === 'function') {
-                onSelectCards();
-                return;
-            }
+        if (item.id === 'dashboard') {
             if (typeof onSelectDashboard === 'function') {
                 onSelectDashboard();
                 return;
             }
+            if (typeof onSelectCards === 'function') {
+                onSelectCards();
+                return;
+            }
         }
-        if (item.id === 'table' && typeof onSelectTable === 'function') {
-            onSelectTable();
+        if (item.id === 'map' && typeof onSelectMap === 'function') {
+            onSelectMap();
             return;
         }
         if (item.id === 'analytics' && typeof onSelectAnalytics === 'function') {
@@ -49,19 +50,19 @@ export function MobileBottomNav({
     };
 
     // Unified 5-button symmetrical bottom navigation across all roles:
-    // [ Kartu ] [ Tabel ] [ (+) Lapor ] [ Analisis ] [ Profil ]
+    // [ Dashboard ] [ Peta ] [ (+) Lapor ] [ Analisis ] [ Profil ]
     const navItems = [
         {
-            id: 'cards',
-            label: isEn ? 'Cards' : 'Kartu',
+            id: 'dashboard',
+            label: 'Dashboard',
             href: '/?view=cards',
             icon: LayoutGrid,
         },
         {
-            id: 'table',
-            label: isEn ? 'Table' : 'Tabel',
-            href: '/?view=table',
-            icon: Table,
+            id: 'map',
+            label: isEn ? 'Map' : 'Peta',
+            href: '/?view=map',
+            icon: MapPin,
         },
         {
             id: 'report',
@@ -129,7 +130,7 @@ export function MobileBottomNav({
                         const Icon = item.icon;
                         const isActive =
                             currentTab === item.id ||
-                            (currentTab === 'dashboard' && item.id === 'cards');
+                            (item.id === 'dashboard' && (currentTab === 'dashboard' || currentTab === 'cards' || currentTab === 'table'));
 
                         return (
                             <a
