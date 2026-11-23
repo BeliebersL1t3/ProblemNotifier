@@ -55,7 +55,7 @@ export default function LeanInteractiveMapView({
     const [selectedStatusFilter, setSelectedStatusFilter] = useState('all'); // 'all', 'open', 'in_progress', 'pending', 'resolved'
 
     // 5. Sidebar Tray & Direct Pinning State
-    const [showSidebar, setShowSidebar] = useState(true);
+    const [showSidebar, setShowSidebar] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 1024 : true));
     const [sidebarTab, setSidebarTab] = useState('unmapped'); // 'unmapped' | 'pinned'
     const [sidebarSearch, setSidebarSearch] = useState('');
 
@@ -299,6 +299,10 @@ export default function LeanInteractiveMapView({
         // Only drop draft pin if in 'pin' mode
         if (interactionMode !== 'pin') {
             return;
+        }
+
+        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+            setShowSidebar(false);
         }
 
         const nearbyIssues = pinnedIssues.filter((iss) => {
@@ -584,7 +588,15 @@ export default function LeanInteractiveMapView({
                     {/* Toggle Sidebar Tray Button */}
                     <button
                         type="button"
-                        onClick={() => setShowSidebar((s) => !s)}
+                        onClick={() => {
+                            setShowSidebar((s) => {
+                                const next = !s;
+                                if (next && typeof window !== 'undefined' && window.innerWidth < 1024) {
+                                    setActiveSelection(null);
+                                }
+                                return next;
+                            });
+                        }}
                         className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
                             showSidebar
                                 ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm'
@@ -594,7 +606,7 @@ export default function LeanInteractiveMapView({
                         }`}
                     >
                         {showSidebar ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
-                        <span className="hidden sm:inline">{isEn ? 'Ticket Drawer' : 'Daftar Isu'}</span>
+                        <span className="text-xs">{isEn ? 'Tickets' : 'Daftar Isu'}</span>
                         {unmappedIssues.length > 0 && (
                             <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black">
                                 {unmappedIssues.length}
@@ -872,6 +884,9 @@ export default function LeanInteractiveMapView({
                                     type="button"
                                     onClick={(e) => {
                                         e.stopPropagation();
+                                        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                                            setShowSidebar(false);
+                                        }
                                         setActiveSelection({
                                             type: 'cluster',
                                             resort: activeResort,
@@ -915,27 +930,38 @@ export default function LeanInteractiveMapView({
 
                 {/* 2. SIDEBAR TRAY: UNMAPPED ISSUES & PINNED ISSUES */}
                 {showSidebar && (
-                    <div
-                        className={`w-full lg:w-96 rounded-2xl border shadow-lg flex flex-col h-[480px] lg:h-[680px] overflow-hidden ${
-                            isDark ? 'bg-slate-900/90 border-slate-700/80 text-white' : 'bg-white border-slate-200 text-slate-800'
-                        }`}
-                    >
-                        {/* Sidebar Header & Tab Switcher */}
-                        <div className="p-3 border-b border-slate-200 dark:border-slate-800 space-y-2.5 shrink-0">
-                            <div className="flex items-center justify-between">
-                                <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                                    <Layers className="w-4 h-4 text-emerald-500" />
-                                    <span>{isEn ? 'Resort Issues Drawer' : 'Daftar Isu Denah'}</span>
-                                </h3>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowSidebar(false)}
-                                    className="text-slate-400 hover:text-slate-600 dark:hover:text-white"
-                                    title="Tutup Panel"
-                                >
-                                    <X className="w-4 h-4" />
-                                </button>
-                            </div>
+                    <>
+                        {/* Mobile Backdrop */}
+                        <div
+                            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 lg:hidden animate-in fade-in duration-200"
+                            onClick={() => setShowSidebar(false)}
+                        />
+
+                        {/* Drawer Container: Responsive Bottom Sheet on Mobile, Static Side Tray on Desktop */}
+                        <div
+                            className={`fixed inset-x-0 bottom-0 z-50 rounded-t-3xl border-t shadow-2xl max-h-[82vh] h-[540px] flex flex-col animate-in slide-in-from-bottom duration-300 lg:static lg:w-96 lg:h-[680px] lg:rounded-2xl lg:border lg:shadow-lg lg:z-auto lg:animate-none overflow-hidden pb-safe ${
+                                isDark ? 'bg-slate-900 border-slate-700/80 text-white' : 'bg-white border-slate-200 text-slate-800'
+                            }`}
+                        >
+                            {/* Drag Indicator Pill for Mobile */}
+                            <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto my-2.5 lg:hidden shrink-0" />
+
+                            {/* Sidebar Header & Tab Switcher */}
+                            <div className="p-3 border-b border-slate-200 dark:border-slate-800 space-y-2.5 shrink-0">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                                        <Layers className="w-4 h-4 text-emerald-500" />
+                                        <span>{isEn ? 'Resort Issues Drawer' : 'Daftar Isu Denah'}</span>
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowSidebar(false)}
+                                        className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                        title="Tutup Panel"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
 
                             {/* Tab Switcher: Belum Ada Pin vs Sudah di Peta */}
                             <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
@@ -1038,7 +1064,12 @@ export default function LeanInteractiveMapView({
                                             <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/80">
                                                 <button
                                                     type="button"
-                                                    onClick={() => onSelectIssue(iss)}
+                                                    onClick={() => {
+                                                        onSelectIssue(iss);
+                                                        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                                                            setShowSidebar(false);
+                                                        }
+                                                    }}
                                                     className="text-[11px] text-slate-500 hover:text-emerald-500"
                                                 >
                                                     {isEn ? 'View Detail' : 'Lihat Detail'}
@@ -1052,6 +1083,9 @@ export default function LeanInteractiveMapView({
                                                         } else {
                                                             setPendingIssueToPin(iss);
                                                             setInteractionMode('pin');
+                                                            if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                                                                setShowSidebar(false);
+                                                            }
                                                             showToast(
                                                                 isEn
                                                                     ? `Now click anywhere on the map to place #${iss.issue_code || iss.id}!`
@@ -1129,7 +1163,12 @@ export default function LeanInteractiveMapView({
                                             <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/80">
                                                 <button
                                                     type="button"
-                                                    onClick={() => onSelectIssue(iss)}
+                                                    onClick={() => {
+                                                        onSelectIssue(iss);
+                                                        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                                                            setShowSidebar(false);
+                                                        }
+                                                    }}
                                                     className="text-[11px] text-emerald-500 font-semibold hover:underline"
                                                 >
                                                     {isEn ? 'View Detail' : 'Lihat Detail'}
@@ -1152,64 +1191,79 @@ export default function LeanInteractiveMapView({
                             )}
                         </div>
                     </div>
+                    </>
                 )}
             </div>
 
             {/* PIN POPUP / DRAWER (WHEN A PIN OR DRAFT POINT IS CLICKED) */}
             {activeSelection && (
-                <div
-                    className={`w-full rounded-2xl border shadow-2xl p-4 sm:p-5 animate-in slide-in-from-bottom-4 duration-200 ${
-                        isDark ? 'bg-slate-900/95 border-slate-700/80 text-white' : 'bg-white border-slate-300 text-slate-800'
-                    }`}
-                >
-                    {/* Header */}
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-                        <div className="flex items-center gap-2.5">
-                            <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center font-bold">
-                                <MapPin className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-sm sm:text-base flex items-center gap-2">
-                                    <span>{activeSelection.label || (isEn ? 'Pinned Location' : 'Titik Lokasi Denah')}</span>
-                                    <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-normal">
-                                        {activeSelection.resort} • X: {activeSelection.x.toFixed(1)}%, Y: {activeSelection.y.toFixed(1)}%
-                                    </span>
-                                </h3>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">
-                                    {activeSelection.issues.length > 0
-                                        ? `${activeSelection.issues.length} ${isEn ? 'issue(s) at this location' : 'isu aktif di titik ini'}`
-                                        : isEn
-                                        ? 'No issues attached yet. Choose an action below.'
-                                        : 'Belum ada isu yang ditautkan ke titik ini.'}
-                                </p>
-                            </div>
-                        </div>
+                <>
+                    {/* Mobile Backdrop */}
+                    <div
+                        className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 lg:hidden animate-in fade-in duration-200"
+                        onClick={() => setActiveSelection(null)}
+                    />
 
-                        <div className="flex items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    onOpenCreateIssue({
-                                        resort: activeSelection.resort,
-                                        x: activeSelection.x,
-                                        y: activeSelection.y,
-                                        label: customPinLabel.trim() || activeSelection.label,
-                                    });
-                                }}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
-                            >
-                                <Plus className="w-3.5 h-3.5" />
-                                <span>{isEn ? 'Report Here' : 'Buat Isu di Titik Ini'}</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setActiveSelection(null)}
-                                className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 flex items-center justify-center transition-colors"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
+                    {/* Container: Responsive Bottom Sheet on Mobile, Static Card on Desktop */}
+                    <div
+                        className={`fixed inset-x-0 bottom-0 z-50 rounded-t-3xl border-t shadow-2xl max-h-[85vh] overflow-y-auto p-4 sm:p-5 animate-in slide-in-from-bottom duration-300 lg:static lg:w-full lg:rounded-2xl lg:border lg:shadow-2xl lg:z-auto lg:animate-in lg:slide-in-from-bottom-4 pb-safe ${
+                            isDark ? 'bg-slate-900 border-slate-700/80 text-white' : 'bg-white border-slate-300 text-slate-800'
+                        }`}
+                    >
+                        {/* Drag Indicator Pill for Mobile */}
+                        <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto mb-3 lg:hidden shrink-0" />
+
+                        {/* Header */}
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center font-bold">
+                                    <MapPin className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-sm sm:text-base flex items-center gap-2">
+                                        <span>{activeSelection.label || (isEn ? 'Pinned Location' : 'Titik Lokasi Denah')}</span>
+                                        <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-normal">
+                                            {activeSelection.resort} • X: {activeSelection.x.toFixed(1)}%, Y: {activeSelection.y.toFixed(1)}%
+                                        </span>
+                                    </h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        {activeSelection.issues.length > 0
+                                            ? `${activeSelection.issues.length} ${isEn ? 'issue(s) at this location' : 'isu aktif di titik ini'}`
+                                            : isEn
+                                            ? 'No issues attached yet. Choose an action below.'
+                                            : 'Belum ada isu yang ditautkan ke titik ini.'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        onOpenCreateIssue({
+                                            resort: activeSelection.resort,
+                                            x: activeSelection.x,
+                                            y: activeSelection.y,
+                                            label: customPinLabel.trim() || activeSelection.label,
+                                        });
+                                        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                                            setActiveSelection(null);
+                                        }
+                                    }}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+                                >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    <span>{isEn ? 'Report Here' : 'Buat Isu di Titik Ini'}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveSelection(null)}
+                                    className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 flex items-center justify-center transition-colors"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
-                    </div>
 
                     {/* Content Grid */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-4">
@@ -1276,7 +1330,12 @@ export default function LeanInteractiveMapView({
                                             <div className="flex flex-col gap-1.5 shrink-0">
                                                 <button
                                                     type="button"
-                                                    onClick={() => onSelectIssue(iss)}
+                                                    onClick={() => {
+                                                        onSelectIssue(iss);
+                                                        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                                                            setActiveSelection(null);
+                                                        }
+                                                    }}
                                                     className="px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-xs font-semibold transition-colors"
                                                 >
                                                     {isEn ? 'Details' : 'Lihat'}
@@ -1388,7 +1447,8 @@ export default function LeanInteractiveMapView({
                         </div>
                     </div>
                 </div>
-            )}
+            </>
+        )}
         </div>
     );
 }
