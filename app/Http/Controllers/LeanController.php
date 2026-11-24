@@ -1888,6 +1888,18 @@ class LeanController extends Controller
     }
 
     /**
+     * Build optional map link line for WhatsApp message if the issue has map coordinates.
+     */
+    protected static function formatIssueMapLink(LeanIssue $issue, string $label = 'Lihat di Peta'): string
+    {
+        if ($issue->map_x !== null && $issue->map_y !== null) {
+            $url = TicketNotificationService::getTailscaleAppUrl("/lapangan?focus_map={$issue->id}");
+            return "\n🗺️ *{$label}:* {$url}";
+        }
+        return '';
+    }
+
+    /**
      * Dispatch WhatsApp notification to the reporting staff upon issue registration.
      */
     protected function notifyReporterCreated(LeanIssue $issue, string $receiverName, string $receiverDept, ?string $assignedWorkers = null): void
@@ -1906,6 +1918,7 @@ class LeanController extends Controller
             ? "🔧 *Ditugaskan Kepada:* {$assignedWorkers}\n"
             : "";
         $tailscaleLink = TicketNotificationService::getTailscaleAppUrl("/lapangan?focus={$issueCode}");
+        $mapLine = self::formatIssueMapLink($issue, 'Lihat di Peta');
 
         $message = "📋 *Laporan Diterima - Telunas Tracker*\n\n"
                  . "Halo *{$issue->reporter_name}*,\n"
@@ -1918,7 +1931,7 @@ class LeanController extends Controller
                  . $workerLine
                  . "📊 *Status Awal:* {$statusText}\n\n"
                  . "Kami akan terus mengabari perkembangan status laporan Anda (*dikerjakan, progress, pending, pengalihan,* hingga *selesai*) melalui WhatsApp ini. Terima kasih!\n\n"
-                 . "🔗 *Pantau Laporan:* {$tailscaleLink}";
+                 . "🔗 *Pantau Laporan:* {$tailscaleLink}{$mapLine}";
 
         try {
             TicketNotificationService::sendWhatsApp($reporterPhone, $message);
@@ -1939,6 +1952,7 @@ class LeanController extends Controller
 
         $issueCode = self::formatIssueCode($issue);
         $tailscaleLink = TicketNotificationService::getTailscaleAppUrl("/lapangan?focus={$issueCode}");
+        $mapLine = self::formatIssueMapLink($issue, 'Lihat di Peta');
         $solverDisplay = $solverName ?: 'Tim Departemen';
         $deptDisplay = $solverDept ?: 'Resort';
         $noteText = !empty($note) ? "\n📝 *Catatan:* {$note}" : "";
@@ -1951,7 +1965,7 @@ class LeanController extends Controller
                  . "🏷️ *Kode Tiket:* #{$issueCode}\n"
                  . "🔧 *Diselesaikan Oleh:* {$solverDisplay} ({$deptDisplay}){$noteText}\n\n"
                  . "Terima kasih atas bantuan Anda dalam menjaga kenyamanan Telunas Resorts!\n\n"
-                 . "🔗 *Lihat Bukti Selesai:* {$tailscaleLink}";
+                 . "🔗 *Lihat Bukti Selesai:* {$tailscaleLink}{$mapLine}";
 
         try {
             TicketNotificationService::sendWhatsApp($reporterPhone, $message);
@@ -1972,6 +1986,7 @@ class LeanController extends Controller
 
         $issueCode = self::formatIssueCode($issue);
         $tailscaleLink = TicketNotificationService::getTailscaleAppUrl("/lapangan?focus={$issueCode}");
+        $mapLine = self::formatIssueMapLink($issue, 'Lihat di Peta');
         $titleHeader = $wasPending
             ? "🔄 *Laporan Dilanjutkan ke Tahap Progress - Telunas Tracker*"
             : "⚡ *Laporan Mulai Dikerjakan - Telunas Tracker*";
@@ -1989,7 +2004,7 @@ class LeanController extends Controller
                  . "🏢 *Departemen:* {$dept}\n"
                  . "👷 *Dikerjakan Oleh:* {$workersStr}{$noteLine}\n\n"
                  . "Kami akan terus mengabari perkembangan penanganannya melalui WhatsApp ini.\n\n"
-                 . "🔗 *Pantau Progres:* {$tailscaleLink}";
+                 . "🔗 *Pantau Progres:* {$tailscaleLink}{$mapLine}";
 
         try {
             return TicketNotificationService::sendWhatsApp($reporterPhone, $message);
@@ -2018,6 +2033,7 @@ class LeanController extends Controller
 
         $issueCode = self::formatIssueCode($issue);
         $tailscaleLink = TicketNotificationService::getTailscaleAppUrl("/lapangan?focus={$issueCode}");
+        $mapLine = self::formatIssueMapLink($issue, 'Lihat di Peta');
         $workersText = !empty($activeWorkers) ? implode(', ', $activeWorkers) : '-';
         $commentLine = $comment !== '' ? "\n💬 *Update Progress:* {$comment}" : '';
         $changeParts = [];
@@ -2039,7 +2055,7 @@ class LeanController extends Controller
                  . $commentLine
                  . $teamChangeLine . "\n"
                  . "👤 *Diperbarui Oleh:* {$actorName}\n\n"
-                 . "🔗 *Lihat Progres:* {$tailscaleLink}";
+                 . "🔗 *Lihat Progres:* {$tailscaleLink}{$mapLine}";
 
         try {
             TicketNotificationService::sendWhatsApp($reporterPhone, $message);
@@ -2060,6 +2076,7 @@ class LeanController extends Controller
 
         $issueCode = self::formatIssueCode($issue);
         $tailscaleLink = TicketNotificationService::getTailscaleAppUrl("/lapangan?focus={$issueCode}");
+        $mapLine = self::formatIssueMapLink($issue, 'Lihat di Peta');
         $heading = $isUpdatePending
             ? "⏳ *Update Alasan Pending - Telunas Tracker*"
             : "⏳ *Laporan Ditunda Sementara (Pending) - Telunas Tracker*";
@@ -2074,7 +2091,7 @@ class LeanController extends Controller
                  . "📝 *Alasan Pending:* {$reason}\n"
                  . "👤 *Dicatat Oleh:* {$actorName}\n\n"
                  . "Tim akan kembali melanjutkan pengerjaan begitu kendala di atas teratasi.\n\n"
-                 . "🔗 *Lihat Status:* {$tailscaleLink}";
+                 . "🔗 *Lihat Status:* {$tailscaleLink}{$mapLine}";
 
         try {
             TicketNotificationService::sendWhatsApp($reporterPhone, $message);
@@ -2095,6 +2112,7 @@ class LeanController extends Controller
 
         $issueCode = self::formatIssueCode($issue);
         $tailscaleLink = TicketNotificationService::getTailscaleAppUrl("/lapangan?focus={$issueCode}");
+        $mapLine = self::formatIssueMapLink($issue, 'Lihat di Peta');
 
         $message = "🔀 *Pengalihan Departemen Penangan - Telunas Tracker*\n\n"
                  . "Halo *{$issue->reporter_name}*,\n"
@@ -2106,7 +2124,7 @@ class LeanController extends Controller
                  . "📝 *Alasan Pengalihan:* {$reason}\n"
                  . "👤 *Oleh:* {$actorName}\n\n"
                  . "Status tiket kembali *Open* untuk departemen *{$toDept}*.\n\n"
-                 . "🔗 *Lihat Laporan:* {$tailscaleLink}";
+                 . "🔗 *Lihat Laporan:* {$tailscaleLink}{$mapLine}";
 
         try {
             TicketNotificationService::sendWhatsApp($reporterPhone, $message);
@@ -2121,6 +2139,7 @@ class LeanController extends Controller
     {
         $issueCode = self::formatIssueCode($issue);
         $tailscaleLink = TicketNotificationService::getTailscaleAppUrl("/lapangan?focus={$issueCode}");
+        $mapLine = self::formatIssueMapLink($issue, 'Buka di Peta');
         $targetDepts = is_array($issue->target_departments) ? $issue->target_departments : [$receiverDept];
         $deptDisplay = implode(', ', $targetDepts) ?: $receiverDept;
         $reporterDeptDisplay = $issue->reporter_dept ? " ({$issue->reporter_dept})" : '';
@@ -2138,7 +2157,7 @@ class LeanController extends Controller
                  . "• *Dicatat Oleh:* {$receiverName}\n"
                  . "• *Status Awal:* {$statusText}\n"
                  . "• *Deskripsi:* {$descText}\n\n"
-                 . "🔗 *Detail Tiket:* {$tailscaleLink}";
+                 . "🔗 *Detail Tiket:* {$tailscaleLink}{$mapLine}";
 
         try {
             TicketNotificationService::sendWhatsAppGroup([
@@ -2159,6 +2178,7 @@ class LeanController extends Controller
     {
         $issueCode = self::formatIssueCode($issue);
         $tailscaleLink = TicketNotificationService::getTailscaleAppUrl("/lapangan?focus={$issueCode}");
+        $mapLine = self::formatIssueMapLink($issue, 'Buka di Peta');
         $targetDepts = is_array($issue->target_departments) && !empty($issue->target_departments)
             ? $issue->target_departments
             : [$dept];
@@ -2174,7 +2194,7 @@ class LeanController extends Controller
                  . "• *Lokasi:* {$issue->location}\n"
                  . "• *Dikerjakan Oleh:* {$workersStr} ({$dept})\n"
                  . "• *Status:* 🟡 {$statusLabel}{$noteLine}\n\n"
-                 . "🔗 *Pantau Progres:* {$tailscaleLink}";
+                 . "🔗 *Pantau Progres:* {$tailscaleLink}{$mapLine}";
 
         try {
             TicketNotificationService::sendWhatsAppGroup([
@@ -2198,6 +2218,7 @@ class LeanController extends Controller
     ): void {
         $issueCode = self::formatIssueCode($issue);
         $tailscaleLink = TicketNotificationService::getTailscaleAppUrl("/lapangan?focus={$issueCode}");
+        $mapLine = self::formatIssueMapLink($issue, 'Buka di Peta');
         $targetDepts = is_array($issue->target_departments) && !empty($issue->target_departments)
             ? $issue->target_departments
             : [$dept];
@@ -2220,7 +2241,7 @@ class LeanController extends Controller
                  . $commentLine
                  . $teamChangeLine . "\n"
                  . "• *Diperbarui Oleh:* {$actorName}\n\n"
-                 . "🔗 *Detail Progres:* {$tailscaleLink}";
+                 . "🔗 *Detail Progres:* {$tailscaleLink}{$mapLine}";
 
         try {
             TicketNotificationService::sendWhatsAppGroup([
@@ -2237,6 +2258,7 @@ class LeanController extends Controller
     {
         $issueCode = self::formatIssueCode($issue);
         $tailscaleLink = TicketNotificationService::getTailscaleAppUrl("/lapangan?focus={$issueCode}");
+        $mapLine = self::formatIssueMapLink($issue, 'Buka di Peta');
         $targetDepts = is_array($issue->target_departments) && !empty($issue->target_departments)
             ? $issue->target_departments
             : [$dept];
@@ -2251,7 +2273,7 @@ class LeanController extends Controller
                  . "• *Departemen:* {$dept}\n"
                  . "• *Alasan Pending:* {$reason}\n"
                  . "• *Dicatat Oleh:* {$actorName}\n\n"
-                 . "🔗 *Detail Tiket:* {$tailscaleLink}";
+                 . "🔗 *Detail Tiket:* {$tailscaleLink}{$mapLine}";
 
         try {
             TicketNotificationService::sendWhatsAppGroup([
@@ -2268,6 +2290,7 @@ class LeanController extends Controller
     {
         $issueCode = self::formatIssueCode($issue);
         $tailscaleLink = TicketNotificationService::getTailscaleAppUrl("/lapangan?focus={$issueCode}");
+        $mapLine = self::formatIssueMapLink($issue, 'Buka di Peta');
         $targetDepts = is_array($issue->target_departments) && !empty($issue->target_departments)
             ? $issue->target_departments
             : [$solverDept ?: 'Resort'];
@@ -2286,7 +2309,7 @@ class LeanController extends Controller
                  . "• *Diselesaikan Oleh:* {$solverDisplay}\n"
                  . "• *Seluruh Kontributor:* {$contributorsList}{$noteLine}\n"
                  . "• *Status:* 🟢 Selesai (Resolved)\n\n"
-                 . "🔗 *Verifikasi Hasil:* {$tailscaleLink}";
+                 . "🔗 *Verifikasi Hasil:* {$tailscaleLink}{$mapLine}";
 
         try {
             TicketNotificationService::sendWhatsAppGroup([
@@ -2313,6 +2336,7 @@ class LeanController extends Controller
     ): void {
         $issueCode = self::formatIssueCode($issue);
         $tailscaleLink = TicketNotificationService::getTailscaleAppUrl("/lapangan?focus={$issueCode}");
+        $mapLine = self::formatIssueMapLink($issue, 'Buka di Peta');
 
         $filteredOldDepts = array_values(array_filter($oldDepts, function ($d) use ($newDept) {
             return strcasecmp(self::normalizeDepartment((string) $d), $newDept) !== 0;
@@ -2331,7 +2355,7 @@ class LeanController extends Controller
                         . "• *Oleh:* {$actorName}\n"
                         . "• *Alasan:* {$reason}\n\n"
                         . "_Tiket telah resmi dilepaskan dari antrean {$oldDept} dan diteruskan ke grup {$newDept}._\n\n"
-                        . "🔗 *Pantau Tiket:* {$tailscaleLink}";
+                        . "🔗 *Pantau Tiket:* {$tailscaleLink}{$mapLine}";
 
             try {
                 TicketNotificationService::sendWhatsAppGroup([
@@ -2355,7 +2379,7 @@ class LeanController extends Controller
                     . "• *Alasan Pengalihan:* {$reason}\n"
                     . "• *Deskripsi Asal:* {$descText}\n"
                     . "• *Status:* 🕒 Open (Menunggu Penanganan {$newDept})\n\n"
-                    . "🔗 *Buka Tiket:* {$tailscaleLink}";
+                    . "🔗 *Buka Tiket:* {$tailscaleLink}{$mapLine}";
 
         try {
             TicketNotificationService::sendWhatsAppGroup([
@@ -2377,7 +2401,7 @@ class LeanController extends Controller
                     . "• *Dialihkan Oleh:* {$actorName}\n"
                     . "• *Alasan Pengalihan:* {$reason}\n"
                     . "• *Status Terkini:* 🕒 Open ({$newDept})\n\n"
-                    . "🔗 *Buka Tiket di Dashboard:* {$tailscaleLink}";
+                    . "🔗 *Buka Tiket di Dashboard:* {$tailscaleLink}{$mapLine}";
 
         try {
             TicketNotificationService::sendWhatsAppGroup([

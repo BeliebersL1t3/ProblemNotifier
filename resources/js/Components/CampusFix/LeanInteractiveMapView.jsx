@@ -1151,6 +1151,9 @@ export default function LeanInteractiveMapView({
                             const isSelected =
                                 activeSelection &&
                                 Math.hypot(activeSelection.x - cluster.x, activeSelection.y - cluster.y) < 1.0;
+                            const isIsolated =
+                                isolatedIssueId && cluster.issues.some((i) => String(i.id) === String(isolatedIssueId));
+                            const isFocusedPin = Boolean(isIsolated || isSelected);
                             const colorClass = getClusterColor(cluster.issues);
                             const hasOpen = cluster.issues.some((i) => i.status === 'open');
 
@@ -1172,18 +1175,28 @@ export default function LeanInteractiveMapView({
                                         setShowSidebar(true);
                                     }}
                                     className={`absolute -translate-x-1/2 -translate-y-1/2 z-30 transition-all duration-200 group cursor-pointer focus:outline-none ${
-                                        isSelected ? 'scale-125 z-40' : 'hover:scale-115'
+                                        isFocusedPin ? 'scale-125 z-40' : 'hover:scale-115'
                                     }`}
                                     style={{ left: `${cluster.x}%`, top: `${cluster.y}%` }}
                                     title={`${cluster.label || 'Titik Isu'}: ${count} issue(s)`}
                                 >
-                                    {hasOpen && (
+                                    {/* ANIMASI PULSE / RADAR BEACON PADA PIN TERFOKUS */}
+                                    {isFocusedPin && (
+                                        <>
+                                            {/* Layer 1: Expanding Radar Ping */}
+                                            <div className="absolute -inset-4 rounded-full bg-emerald-400/35 animate-ping pointer-events-none" />
+                                            {/* Layer 2: Glowing Aura Beacon with Neon Glow Shadow */}
+                                            <div className="absolute -inset-2.5 rounded-full border-2 border-emerald-400 bg-emerald-500/20 animate-pulse pointer-events-none shadow-[0_0_22px_rgba(52,211,153,0.95)]" />
+                                        </>
+                                    )}
+
+                                    {hasOpen && !isFocusedPin && (
                                         <div className="absolute -inset-2 rounded-full border-2 border-rose-500/80 animate-ping pointer-events-none" />
                                     )}
 
                                     <div
                                         className={`relative px-2 py-1 rounded-full text-xs font-black border shadow-lg flex items-center gap-1 ring-2 transition-all ${colorClass} ${
-                                            isSelected ? 'ring-white ring-offset-2 ring-offset-slate-950 shadow-2xl' : ''
+                                            isFocusedPin ? 'ring-white ring-offset-2 ring-offset-emerald-950 shadow-2xl scale-110' : ''
                                         }`}
                                     >
                                         <MapPin className="w-3 h-3 shrink-0" />

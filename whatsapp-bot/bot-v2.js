@@ -908,6 +908,9 @@ async function startSock() {
                                     if (item.resolved_at) listMsg += `   ✅ Selesai: ${item.resolved_at}\n`;
                                     if (item.solver) listMsg += `   👤 Diselesaikan: ${item.solver}\n`;
                                 }
+                                if (item.map_x != null && item.map_y != null) {
+                                    listMsg += `   🗺️ Peta: ${PUBLIC_URL}/lapangan?focus_map=${encodeURIComponent(item.id)}\n`;
+                                }
                                 listMsg += `\n`;
                             });
                         }
@@ -1042,6 +1045,9 @@ async function startSock() {
                                 if (item.created_at) listMsg += `   🕒 Di-upload: ${item.created_at_human || item.created_at}\n`;
                                 if (item.resolved_at) listMsg += `   ✅ Selesai: ${item.resolved_at}\n`;
                                 if (item.solver) listMsg += `   👤 Diselesaikan: ${item.solver}\n`;
+                            }
+                            if (item.map_x != null && item.map_y != null) {
+                                listMsg += `   🗺️ Peta: ${PUBLIC_URL}/lapangan?focus_map=${encodeURIComponent(item.id)}\n`;
                             }
                             listMsg += `\n`;
                         });
@@ -1250,6 +1256,10 @@ async function startSock() {
                         const createdData = res.data.data || {};
                         const issueId = createdData.id || 'TERCATAT';
                         const accurateLocation = createdData.location || state.data.location;
+                        const hasMapCoords = createdData.map_x != null && createdData.map_y != null;
+                        const mapDeepLinkLine = hasMapCoords
+                            ? `\n🗺️ *Lihat di Peta:* ${PUBLIC_URL}/lapangan?focus_map=${encodeURIComponent(issueId)}`
+                            : '';
 
                         // Confirmation to Reporter (source='whatsapp_bot' skips redundant DM from Laravel)
                         await reply(
@@ -1260,7 +1270,7 @@ async function startSock() {
                             `• *Departemen Dituju:* ${state.data.department}\n` +
                             `• *Pelapor:* ${state.data.reporter}\n\n` +
                             `Laporan telah diteruskan ke grup terkait. Pembaruan status (*dikerjakan, progress, pending, pengalihan,* hingga *selesai*) akan dikirim otomatis ke WhatsApp ini. Terima kasih!\n\n` +
-                            `🔗 *Pantau Laporan:* ${PUBLIC_URL}/lapangan?focus=${encodeURIComponent(issueId)}`
+                            `🔗 *Pantau Laporan:* ${PUBLIC_URL}/lapangan?focus=${encodeURIComponent(issueId)}${mapDeepLinkLine}`
                         );
 
                         // Broadcast message content
@@ -1272,7 +1282,7 @@ async function startSock() {
                             `• *Departemen:* ${state.data.department}\n` +
                             `• *Pelapor:* ${state.data.reporter} (${state.data.reporter_dept || 'Staf'})\n` +
                             `• *Deskripsi:* ${state.data.description}\n\n` +
-                            `🔗 *Detail Tiket:* ${PUBLIC_URL}/lapangan?focus=${encodeURIComponent(issueId)}\n\n`;
+                            `🔗 *Detail Tiket:* ${PUBLIC_URL}/lapangan?focus=${encodeURIComponent(issueId)}${mapDeepLinkLine}\n\n`;
 
                         // 1. Send to Location Group (FYI, Read-only)
                         const locKey = (accurateLocation || '').toLowerCase();
