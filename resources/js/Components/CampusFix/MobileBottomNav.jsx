@@ -55,13 +55,13 @@ export function MobileBottomNav({
         {
             id: 'dashboard',
             label: 'Dashboard',
-            href: '/?view=cards',
+            href: '/lapangan',
             icon: LayoutGrid,
         },
         {
             id: 'map',
             label: isEn ? 'Map' : 'Peta',
-            href: '/?view=map',
+            href: '/lapangan/peta',
             icon: MapPin,
         },
         {
@@ -74,7 +74,7 @@ export function MobileBottomNav({
         {
             id: 'analytics',
             label: t('analytics') || (isEn ? 'Analytics' : 'Analisis'),
-            href: '/?view=analytics',
+            href: '/lapangan/analisis',
             icon: BarChart3,
         },
         {

@@ -142,7 +142,7 @@ export function LeanHeader({
             >
                 <div className="w-full flex items-center justify-between gap-1 sm:gap-3">
                     {/* Brand (Left) */}
-                    <Link href="/" className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 shrink group">
+                    <Link href="/" prefetch cacheFor="30s" className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 shrink group">
                         <div
                             className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg overflow-hidden flex items-center justify-center border shadow-xs shrink-0 ${
                                 isDark ? 'bg-slate-900/90 border-emerald-400/50' : 'bg-white border-emerald-200'
@@ -194,6 +194,8 @@ export function LeanHeader({
                     >
                         <Link
                             href="/lapangan"
+                            prefetch
+                            cacheFor="30s"
                             className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                                 isDashboard
                                     ? 'bg-emerald-600 text-white shadow-sm keep-white ring-1 ring-white/25'
@@ -208,6 +210,8 @@ export function LeanHeader({
                         </Link>
                         <Link
                             href="/lapangan/peta"
+                            prefetch
+                            cacheFor="30s"
                             className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                                 isMap
                                     ? 'bg-emerald-600 text-white shadow-sm keep-white ring-1 ring-white/25'
@@ -222,6 +226,8 @@ export function LeanHeader({
                         </Link>
                         <Link
                             href="/lapangan/analisis"
+                            prefetch
+                            cacheFor="30s"
                             className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                                 isAnalytics
                                     ? 'bg-emerald-600 text-white shadow-sm keep-white ring-1 ring-white/25'

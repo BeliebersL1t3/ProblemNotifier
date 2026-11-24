@@ -3,6 +3,7 @@ import { Head, router } from '@inertiajs/react';
 import { useLeanTheme } from '@/hooks/useLeanTheme';
 import { useLanguage } from '@/context/LanguageContext';
 import LeanHeader from '@/Components/CampusFix/LeanHeader';
+import LeanBottomNav from '@/Components/CampusFix/LeanBottomNav';
 import { LeanAnalyticsView } from '@/Components/CampusFix/LeanAnalyticsView';
 import {
     getOutboxCount,
@@ -69,7 +70,7 @@ export default function LeanAnalytics({
     };
 
     return (
-        <div className={`lean-root ${isDark ? 'lean-theme-dark text-[#F2F3EF]' : 'lean-theme-light text-slate-800'} flex flex-col font-sans pb-12 transition-colors duration-300 w-full max-w-full overflow-x-clip min-h-screen`}>
+        <div className={`lean-root ${isDark ? 'lean-theme-dark text-[#F2F3EF]' : 'lean-theme-light text-slate-800'} flex flex-col font-sans pb-24 md:pb-12 transition-colors duration-300 w-full max-w-full overflow-x-clip min-h-screen`}>
             <Head title="Analisis Operasional — Telunas Issue Tracker" />
             <LeanHeader
                 activePage="analytics"
@@ -180,6 +181,9 @@ export default function LeanAnalytics({
                     </div>
                 </div>
             )}
+
+            {/* Mobile Bottom Navigation Bar */}
+            <LeanBottomNav activePage="analytics" />
         </div>
     );
 }

@@ -41,8 +41,28 @@ export default function LeanInteractiveMapView({
     isDark = true,
     isEn = false,
 }) {
-    // 1. Resort selection: TPI (default) or TBR
-    const [activeResort, setActiveResort] = useState('TPI');
+    // 1. Resort selection: TPI (default) or TBR (persisted in localStorage)
+    const [activeResort, setActiveResort] = useState(() => {
+        if (typeof window !== 'undefined') {
+            try {
+                const saved = localStorage.getItem('lean_erp_resort');
+                if (saved === 'TBR' || saved === 'TPI') return saved;
+            } catch (err) {
+                console.warn('[LeanInteractiveMapView] Failed reading lean_erp_resort:', err);
+            }
+        }
+        return 'TPI';
+    });
+
+    useEffect(() => {
+        if (typeof window !== 'undefined' && activeResort) {
+            try {
+                localStorage.setItem('lean_erp_resort', activeResort);
+            } catch (err) {
+                console.warn('[LeanInteractiveMapView] Failed writing lean_erp_resort:', err);
+            }
+        }
+    }, [activeResort]);
 
     // 2. Interaction mode: 'navigate' vs 'pin'
     const [interactionMode, setInteractionMode] = useState('navigate');
@@ -59,7 +79,27 @@ export default function LeanInteractiveMapView({
     const [timeFilter, setTimeFilter] = useState('all_active'); // 'all_active', '24h', '7d', '30d', 'custom'
     const [customStartDate, setCustomStartDate] = useState('');
     const [customEndDate, setCustomEndDate] = useState('');
-    const [selectedDeptFilter, setSelectedDeptFilter] = useState('all');
+    const [selectedDeptFilter, setSelectedDeptFilter] = useState(() => {
+        if (typeof window !== 'undefined') {
+            try {
+                const saved = localStorage.getItem('lean_erp_selected_dept');
+                if (saved) return saved;
+            } catch (err) {
+                console.warn('[LeanInteractiveMapView] Failed reading lean_erp_selected_dept:', err);
+            }
+        }
+        return 'all';
+    });
+
+    useEffect(() => {
+        if (typeof window !== 'undefined' && selectedDeptFilter) {
+            try {
+                localStorage.setItem('lean_erp_selected_dept', selectedDeptFilter);
+            } catch (err) {
+                console.warn('[LeanInteractiveMapView] Failed writing lean_erp_selected_dept:', err);
+            }
+        }
+    }, [selectedDeptFilter]);
     const [selectedStatusFilter, setSelectedStatusFilter] = useState('all'); // 'all', 'open', 'in_progress', 'pending', 'resolved'
     const [showMobileFilters, setShowMobileFilters] = useState(false);
 

@@ -51,7 +51,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { LeanHeader } from '@/Components/CampusFix/LeanHeader';
-import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
+import LeanBottomNav from '@/Components/CampusFix/LeanBottomNav';
 import { useLeanTheme } from '@/hooks/useLeanTheme';
 import {
     EtaPickerField,
@@ -182,7 +182,7 @@ export default function LeanIndex({
     }, [staffDirectory]);
 
     // --- UI Filters & View Modes ---
-    // Department Filter: 'all' | specific department (supports ?dept= query param)
+    // Department Filter: 'all' | specific department (supports ?dept= query param & localStorage persistence)
     const [selectedDeptFilter, setSelectedDeptFilter] = useState(() => {
         if (typeof window !== 'undefined') {
             const deptParam = new URLSearchParams(window.location.search).get('dept');
@@ -192,9 +192,30 @@ export default function LeanIndex({
                 const matched = (departments || []).find((d) => d.toLowerCase() === norm.toLowerCase());
                 return matched || norm;
             }
+            try {
+                const saved = localStorage.getItem('lean_erp_selected_dept');
+                if (saved) {
+                    if (saved.toLowerCase() === 'all') return 'all';
+                    const norm = normalizeDepartment(saved);
+                    const matched = (departments || []).find((d) => d.toLowerCase() === norm.toLowerCase());
+                    return matched || norm;
+                }
+            } catch (err) {
+                console.warn('[LeanIndex] Failed reading lean_erp_selected_dept:', err);
+            }
         }
         return 'all';
     });
+
+    useEffect(() => {
+        if (typeof window !== 'undefined' && selectedDeptFilter) {
+            try {
+                localStorage.setItem('lean_erp_selected_dept', selectedDeptFilter);
+            } catch (err) {
+                console.warn('[LeanIndex] Failed writing lean_erp_selected_dept:', err);
+            }
+        }
+    }, [selectedDeptFilter]);
     // Month Tab Switcher: 'all' | 1..12
     const [selectedMonthFilter, setSelectedMonthFilter] = useState('all');
 
@@ -691,7 +712,17 @@ export default function LeanIndex({
     }, [issues, selectedDetailIssue]);
 
     // --- Report Form State ---
-    const [formMainLoc, setFormMainLoc] = useState('TBR');
+    const [formMainLoc, setFormMainLoc] = useState(() => {
+        if (typeof window !== 'undefined') {
+            try {
+                const saved = localStorage.getItem('lean_erp_resort');
+                if (saved === 'TBR' || saved === 'TPI') return saved;
+            } catch (err) {
+                console.warn('[LeanIndex] Failed reading lean_erp_resort for formMainLoc:', err);
+            }
+        }
+        return 'TBR';
+    });
     const [formDetailLoc, setFormDetailLoc] = useState('');
     const [formTitle, setFormTitle] = useState('');
     const [formDescription, setFormDescription] = useState('');
@@ -5779,6 +5810,9 @@ export default function LeanIndex({
                     </button>
                 </div>
             )}
+
+            {/* Mobile Bottom Navigation Bar */}
+            <LeanBottomNav activePage="dashboard" />
         </div>
     );
 }

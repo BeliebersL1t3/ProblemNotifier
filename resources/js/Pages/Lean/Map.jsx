@@ -3,6 +3,7 @@ import { Head, router } from '@inertiajs/react';
 import { useLeanTheme } from '@/hooks/useLeanTheme';
 import { useLanguage } from '@/context/LanguageContext';
 import LeanHeader from '@/Components/CampusFix/LeanHeader';
+import LeanBottomNav from '@/Components/CampusFix/LeanBottomNav';
 import LeanInteractiveMapView from '@/Components/CampusFix/LeanInteractiveMapView';
 import {
     getOutboxCount,
@@ -141,7 +142,7 @@ export default function LeanMap({
     };
 
     return (
-        <div className={`lean-root ${isDark ? 'lean-theme-dark text-[#F2F3EF]' : 'lean-theme-light text-slate-800'} flex flex-col font-sans pb-12 transition-colors duration-300 w-full max-w-full overflow-x-clip min-h-screen`}>
+        <div className={`lean-root ${isDark ? 'lean-theme-dark text-[#F2F3EF]' : 'lean-theme-light text-slate-800'} flex flex-col font-sans pb-24 md:pb-6 transition-colors duration-300 w-full max-w-full overflow-x-clip min-h-screen`}>
             <Head title="Peta Denah — Telunas Issue Tracker" />
             <LeanHeader
                 activePage="map"
@@ -321,6 +322,9 @@ export default function LeanMap({
                     </div>
                 </div>
             )}
+
+            {/* Mobile Bottom Navigation Bar */}
+            <LeanBottomNav activePage="map" />
         </div>
     );
 }
