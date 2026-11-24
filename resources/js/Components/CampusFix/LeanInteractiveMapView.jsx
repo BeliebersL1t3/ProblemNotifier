@@ -36,6 +36,8 @@ export default function LeanInteractiveMapView({
     onOpenCreateIssue = () => {},
     focusedIssueId = null,
     onClearFocusIssue = () => {},
+    initialPendingPinIssue = null,
+    onClearPendingPinIssue = () => {},
     isDark = true,
     isEn = false,
 }) {
@@ -156,6 +158,37 @@ export default function LeanInteractiveMapView({
         setToastMessage({ msg, type });
         setTimeout(() => setToastMessage(null), 4000);
     }, []);
+
+    // Auto-activate pin placement when navigated from detail modal with an unpinned issue
+    useEffect(() => {
+        if (!initialPendingPinIssue) return;
+
+        const locUpper = (initialPendingPinIssue.location || '').toUpperCase();
+        let targetResort = (initialPendingPinIssue.map_resort || '').toUpperCase();
+        if (targetResort !== 'TPI' && targetResort !== 'TBR') {
+            if (locUpper.includes('TBR') || locUpper.includes('BEACH') || locUpper.includes('PRIVATE')) {
+                targetResort = 'TBR';
+            } else {
+                targetResort = 'TPI';
+            }
+        }
+
+        if (targetResort !== activeResort.toUpperCase()) {
+            setActiveResort(targetResort);
+        }
+
+        setPendingIssueToPin(initialPendingPinIssue);
+        setInteractionMode('pin');
+
+        showToast(
+            isEn
+                ? `Click on the ${targetResort} map to place pin for #${initialPendingPinIssue.issue_code || initialPendingPinIssue.id}`
+                : `Klik pada denah ${targetResort} untuk meletakkan pin #${initialPendingPinIssue.issue_code || initialPendingPinIssue.id}`,
+            'info'
+        );
+
+        onClearPendingPinIssue();
+    }, [initialPendingPinIssue, activeResort, isEn, onClearPendingPinIssue, showToast]);
 
     // Department & Admin helpers
     const userDept = currentUser?.department || '';

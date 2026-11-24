@@ -268,6 +268,21 @@ export default function LeanIndex({
     const [returnTicket, setReturnTicket] = useState(null);
     const [focusedMapIssueId, setFocusedMapIssueId] = useState(null);
 
+    const [pendingPinIssue, setPendingPinIssue] = useState(null);
+
+    const canManageIssuePin = (iss) => {
+        if (!iss || !currentUser) return false;
+        if (currentUser.is_admin || (currentUser.role && currentUser.role.toLowerCase() === 'admin')) return true;
+        const userDept = currentUser.department;
+        if (!userDept) return false;
+        const targets = Array.isArray(iss.target_departments)
+            ? iss.target_departments
+            : (iss.department ? [iss.department] : []);
+        const matchesTarget = targets.some((d) => d && d.toLowerCase() === userDept.toLowerCase());
+        const matchesReporter = iss.reporter_dept && iss.reporter_dept.toLowerCase() === userDept.toLowerCase();
+        return Boolean(matchesTarget || matchesReporter);
+    };
+
     const handleNavigateToMap = (issue) => {
         if (!issue) return;
         setReturnTicket({
@@ -276,6 +291,17 @@ export default function LeanIndex({
         });
         setSelectedDetailIssue(null);
         setFocusedMapIssueId(issue.id);
+        handleViewModeChange('map');
+    };
+
+    const handleStartPinningFromModal = (issue) => {
+        if (!issue) return;
+        setReturnTicket({
+            issue,
+            previousViewMode: viewMode,
+        });
+        setSelectedDetailIssue(null);
+        setPendingPinIssue(issue);
         handleViewModeChange('map');
     };
 
@@ -2277,6 +2303,8 @@ export default function LeanIndex({
                         onOpenCreateIssue={handleOpenCreateIssueFromMap}
                         focusedIssueId={focusedMapIssueId}
                         onClearFocusIssue={() => setFocusedMapIssueId(null)}
+                        initialPendingPinIssue={pendingPinIssue}
+                        onClearPendingPinIssue={() => setPendingPinIssue(null)}
                         isDark={isDark}
                         isEn={isEn}
                     />
@@ -4646,7 +4674,7 @@ export default function LeanIndex({
                                 )}
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
-                                {activeDetailIssue.map_x != null && activeDetailIssue.map_y != null && (
+                                {activeDetailIssue.map_x != null && activeDetailIssue.map_y != null ? (
                                     <button
                                         type="button"
                                         onClick={() => handleNavigateToMap(activeDetailIssue)}
@@ -4660,6 +4688,22 @@ export default function LeanIndex({
                                         <MapPin className="w-3.5 h-3.5" />
                                         <span>{isEn ? 'Show on Map' : 'Tampilkan di Map'}</span>
                                     </button>
+                                ) : (
+                                    canManageIssuePin(activeDetailIssue) && (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleStartPinningFromModal(activeDetailIssue)}
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer ${
+                                                isDark
+                                                    ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-950/40 ring-1 ring-amber-400/30'
+                                                    : 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-200'
+                                            }`}
+                                            title={isEn ? 'Drop a pin for this issue on the Island Map' : 'Tentukan dan letakkan titik pin isu ini di peta'}
+                                        >
+                                            <MapPin className="w-3.5 h-3.5" />
+                                            <span>{isEn ? 'Place on Map' : 'Letakkan di Map'}</span>
+                                        </button>
+                                    )
                                 )}
                                 <button
                                     type="button"
@@ -4801,30 +4845,43 @@ export default function LeanIndex({
                                 {visibleColumns.location && (() => {
                                     const locInfo = resolveIssueResortAndZone(activeDetailIssue);
                                     const hasMapPin = activeDetailIssue.map_x != null && activeDetailIssue.map_y != null;
-                                    const canNavigate = hasMapPin || (!locInfo.isOffice && (locInfo.resort === 'TBR' || locInfo.resort === 'TPI'));
+                                    const canPlacePin = !hasMapPin && canManageIssuePin(activeDetailIssue) && !locInfo.isOffice;
+                                    const canNavigate = hasMapPin || canPlacePin;
                                     const mapResortName = (activeDetailIssue.map_resort || locInfo.resort || 'Map').toUpperCase();
 
                                     return (
                                         <div
-                                            onClick={canNavigate ? () => handleNavigateToMap(activeDetailIssue) : undefined}
+                                            onClick={
+                                                hasMapPin
+                                                    ? () => handleNavigateToMap(activeDetailIssue)
+                                                    : canPlacePin
+                                                    ? () => handleStartPinningFromModal(activeDetailIssue)
+                                                    : undefined
+                                            }
                                             className={`p-2.5 rounded-xl border transition-all ${
                                                 canNavigate
                                                     ? isDark
-                                                        ? 'bg-slate-800/90 border-slate-700/80 hover:bg-slate-750 hover:border-emerald-500/60 cursor-pointer group shadow-sm'
-                                                        : 'bg-slate-50 border-slate-200 hover:bg-emerald-50/50 hover:border-emerald-300 cursor-pointer group shadow-2xs'
+                                                        ? hasMapPin
+                                                            ? 'bg-slate-800/90 border-slate-700/80 hover:bg-slate-750 hover:border-emerald-500/60 cursor-pointer group shadow-sm'
+                                                            : 'bg-slate-800/90 border-slate-700/80 hover:bg-slate-750 hover:border-amber-500/60 cursor-pointer group shadow-sm'
+                                                        : hasMapPin
+                                                            ? 'bg-slate-50 border-slate-200 hover:bg-emerald-50/50 hover:border-emerald-300 cursor-pointer group shadow-2xs'
+                                                            : 'bg-slate-50 border-slate-200 hover:bg-amber-50/50 hover:border-amber-300 cursor-pointer group shadow-2xs'
                                                     : isDark
                                                     ? 'bg-slate-800/80 border-slate-700/80'
                                                     : 'bg-slate-50 border-slate-200'
                                             }`}
                                             title={
-                                                canNavigate
+                                                hasMapPin
                                                     ? (isEn ? `Click to view and focus location pin on ${mapResortName} Map` : `Klik untuk melihat dan fokuskan titik lokasi pada Denah ${mapResortName}`)
+                                                    : canPlacePin
+                                                    ? (isEn ? `Click to place location pin on ${mapResortName} Map` : `Klik untuk meletakkan titik pin pada Denah ${mapResortName}`)
                                                     : (isEn ? 'Office Location (Island map not available)' : 'Lokasi Kantor / Office (Denah pulau tidak tersedia)')
                                             }
                                         >
                                             <div className="flex items-center justify-between">
                                                 <span className={`text-[10px] font-medium block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{isEn ? 'Issue Location' : 'Lokasi Masalah'}</span>
-                                                {canNavigate ? (
+                                                {hasMapPin ? (
                                                     <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded border flex items-center gap-1 transition-colors ${
                                                         isDark
                                                             ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 group-hover:bg-emerald-500 group-hover:text-slate-950'
@@ -4833,14 +4890,27 @@ export default function LeanIndex({
                                                         <span>{isEn ? `${mapResortName} Map` : `Peta ${mapResortName}`}</span>
                                                         <ExternalLink className="w-2.5 h-2.5" />
                                                     </span>
+                                                ) : canPlacePin ? (
+                                                    <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded border flex items-center gap-1 transition-colors ${
+                                                        isDark
+                                                            ? 'bg-amber-500/15 text-amber-400 border-amber-500/30 group-hover:bg-amber-500 group-hover:text-slate-950'
+                                                            : 'bg-amber-100 text-amber-800 border-amber-200 group-hover:bg-amber-600 group-hover:text-white'
+                                                    }`}>
+                                                        <span>{isEn ? '+ Place Pin' : '+ Letakkan di Map'}</span>
+                                                        <MapPin className="w-2.5 h-2.5" />
+                                                    </span>
                                                 ) : (
                                                     <span className={`text-[9.5px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{isEn ? 'Office' : 'Kantor'}</span>
                                                 )}
                                             </div>
                                             <span className={`text-xs font-bold flex items-center gap-1 mt-0.5 ${
-                                                isDark ? 'text-emerald-300 group-hover:text-emerald-200' : 'text-emerald-700 group-hover:text-emerald-800'
+                                                hasMapPin
+                                                    ? isDark ? 'text-emerald-300 group-hover:text-emerald-200' : 'text-emerald-700 group-hover:text-emerald-800'
+                                                    : canPlacePin
+                                                    ? isDark ? 'text-amber-300 group-hover:text-amber-200' : 'text-amber-700 group-hover:text-amber-800'
+                                                    : isDark ? 'text-slate-200' : 'text-slate-700'
                                             }`}>
-                                                <MapPin className={`w-3.5 h-3.5 ${canNavigate ? (isDark ? 'text-emerald-400 group-hover:scale-110' : 'text-emerald-600 group-hover:scale-110') : 'text-slate-400'} transition-transform`} />
+                                                <MapPin className={`w-3.5 h-3.5 ${hasMapPin ? (isDark ? 'text-emerald-400 group-hover:scale-110' : 'text-emerald-600 group-hover:scale-110') : canPlacePin ? (isDark ? 'text-amber-400 group-hover:scale-110' : 'text-amber-600 group-hover:scale-110') : 'text-slate-400'} transition-transform`} />
                                                 {activeDetailIssue.location}
                                             </span>
                                             {(() => {
@@ -5123,6 +5193,9 @@ export default function LeanIndex({
                                                     resolved: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
                                                     escalation_group: 'bg-amber-500/25 text-amber-300 border-amber-500/40',
                                                     escalation_owner: 'bg-rose-500/25 text-rose-300 border-rose-500/40',
+                                                    pin_placed: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
+                                                    pin_moved: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+                                                    pin_removed: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
                                                 }[effectiveLogType] || 'bg-slate-500/20 text-slate-300 border-slate-500/30') : ({
                                                     assignment: 'bg-indigo-100 text-indigo-800 border-indigo-300',
                                                     claim: 'bg-amber-100 text-amber-800 border-amber-300',
@@ -5131,6 +5204,9 @@ export default function LeanIndex({
                                                     resolved: 'bg-emerald-100 text-emerald-800 border-emerald-300',
                                                     escalation_group: 'bg-amber-100 text-amber-900 border-amber-400',
                                                     escalation_owner: 'bg-rose-100 text-rose-800 border-rose-400',
+                                                    pin_placed: 'bg-teal-100 text-teal-800 border-teal-300',
+                                                    pin_moved: 'bg-cyan-100 text-cyan-800 border-cyan-300',
+                                                    pin_removed: 'bg-slate-100 text-slate-700 border-slate-300',
                                                 }[effectiveLogType] || 'bg-slate-100 text-slate-700 border-slate-300');
 
                                                 const typeText = {
@@ -5141,6 +5217,9 @@ export default function LeanIndex({
                                                     resolved: isEn ? 'Resolved' : 'Selesai',
                                                     escalation_group: isEn ? '1h Group Reminder' : 'Reminder Grup 1j',
                                                     escalation_owner: isEn ? '3h Owner Escalation' : 'Eskalasi Owner 3j',
+                                                    pin_placed: isEn ? 'Pin Placed' : 'Pin Dipasang',
+                                                    pin_moved: isEn ? 'Pin Moved' : 'Pin Dipindah',
+                                                    pin_removed: isEn ? 'Pin Removed' : 'Pin Dilepas',
                                                 }[effectiveLogType] || effectiveLogType;
 
                                                 return (

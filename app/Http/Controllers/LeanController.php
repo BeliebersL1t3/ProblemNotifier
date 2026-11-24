@@ -1229,6 +1229,7 @@ class LeanController extends Controller
         $currentUser = auth()->user();
         $isAdmin = $currentUser && ($currentUser->is_admin || strtolower($currentUser->role ?? '') === 'admin');
         $userDept = $currentUser ? $currentUser->department : null;
+        $actorName = $currentUser ? ($currentUser->staff_name ?: $currentUser->name) : 'Staff';
 
         $isAuthorized = $isAdmin;
         if (!$isAuthorized && $userDept) {
@@ -1246,10 +1247,23 @@ class LeanController extends Controller
         }
 
         if ($request->boolean('clear')) {
+            $prevResort = $issue->map_resort;
+            $prevLabel = $issue->map_label ?: $issue->location;
+
             $issue->map_resort = null;
             $issue->map_x = null;
             $issue->map_y = null;
             $issue->map_label = null;
+
+            $logMsg = $prevResort
+                ? "Melepas pin lokasi dari Denah {$prevResort}" . ($prevLabel ? " ({$prevLabel})" : '') . "."
+                : "Melepas pin lokasi dari denah pulau.";
+
+            $issue->addProgressLog('pin_removed', $actorName, $userDept, $logMsg, [
+                'action'      => 'unpin',
+                'prev_resort' => $prevResort,
+                'prev_label'  => $prevLabel,
+            ]);
             $issue->save();
 
             return response()->json([
@@ -1259,10 +1273,29 @@ class LeanController extends Controller
             ]);
         }
 
-        $issue->map_resort = $validated['map_resort'];
-        $issue->map_x = (float) $validated['map_x'];
-        $issue->map_y = (float) $validated['map_y'];
-        $issue->map_label = $validated['map_label'] ?? $issue->map_label;
+        $resort = $validated['map_resort'];
+        $mapX = (float) $validated['map_x'];
+        $mapY = (float) $validated['map_y'];
+        $label = $validated['map_label'] ?? $issue->map_label;
+        $isRelocation = $issue->map_x !== null && $issue->map_y !== null;
+
+        $issue->map_resort = $resort;
+        $issue->map_x = $mapX;
+        $issue->map_y = $mapY;
+        $issue->map_label = $label;
+
+        $locationLabel = $label ?: $issue->location ?: "titik ({$mapX}%, {$mapY}%)";
+        $logAction = $isRelocation ? 'pin_moved' : 'pin_placed';
+        $logMsg = $isRelocation
+            ? "Memindahkan pin lokasi di Denah {$resort} ke {$locationLabel}."
+            : "Menempatkan pin lokasi di Denah {$resort} pada {$locationLabel}.";
+
+        $issue->addProgressLog($logAction, $actorName, $userDept, $logMsg, [
+            'map_resort' => $resort,
+            'map_label'  => $label,
+            'map_x'      => $mapX,
+            'map_y'      => $mapY,
+        ]);
         $issue->save();
 
         return response()->json([
