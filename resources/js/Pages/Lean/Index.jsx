@@ -5626,17 +5626,6 @@ export default function LeanIndex({
                 </div>
             )}
 
-            {/* UNIFIED MOBILE BOTTOM NAVIGATION */}
-            <MobileBottomNav
-                currentTab={viewMode}
-                onReport={() => setShowReportModal(true)}
-                onSelectDashboard={() => handleViewModeChange('cards')}
-                onSelectCards={() => handleViewModeChange('cards')}
-                onSelectTable={() => handleViewModeChange('table')}
-                onSelectMap={() => handleViewModeChange('map')}
-                onSelectAnalytics={() => handleViewModeChange('analytics')}
-            />
-
             {/* MODAL 6: OFFLINE OUTBOX MODAL (HP LOCAL STORAGE QUEUE) */}
             {showOutboxModal && (
                 <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
