@@ -34,6 +34,8 @@ export default function LeanInteractiveMapView({
     currentUser = null,
     onSelectIssue = () => {},
     onOpenCreateIssue = () => {},
+    focusedIssueId = null,
+    onClearFocusIssue = () => {},
     isDark = true,
     isEn = false,
 }) {
@@ -67,11 +69,86 @@ export default function LeanInteractiveMapView({
     // Specific issue waiting to be placed onto the map via click
     const [pendingIssueToPin, setPendingIssueToPin] = useState(null);
 
+    // Single-issue Isolation State (Focus on Map)
+    const [isolatedIssueId, setIsolatedIssueId] = useState(() => focusedIssueId || null);
+
+    useEffect(() => {
+        if (focusedIssueId) {
+            setIsolatedIssueId(focusedIssueId);
+        }
+    }, [focusedIssueId]);
+
+    const handleClearIsolation = useCallback(() => {
+        setIsolatedIssueId(null);
+        onClearFocusIssue();
+    }, [onClearFocusIssue]);
+
+    const isolatedIssue = useMemo(() => {
+        if (!isolatedIssueId) return null;
+        return issues.find((i) => String(i.id) === String(isolatedIssueId)) || null;
+    }, [issues, isolatedIssueId]);
+
+    // Helper to check if an issue was resolved today (WIB timezone Asia/Jakarta)
+    const isResolvedTodayWib = useCallback((iss) => {
+        if (!iss || iss.status !== 'resolved') return false;
+        const resolvedDateStr = iss.resolved_at || iss.updated_at;
+        if (!resolvedDateStr) return false;
+        const d = new Date(resolvedDateStr);
+        if (isNaN(d.getTime())) return false;
+        const resolvedDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(d);
+        const todayDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+        return resolvedDay === todayDay;
+    }, []);
+
     // 6. Selected Pin / Coordinates Drawer State
     const [activeSelection, setActiveSelection] = useState(null);
     const [customPinLabel, setCustomPinLabel] = useState('');
     const [unmappedSearch, setUnmappedSearch] = useState('');
     const [isPinningLoading, setIsPinningLoading] = useState(false);
+
+    // Auto-center, switch resort, and activate selection when focused/isolated issue changes
+    useEffect(() => {
+        if (!isolatedIssue) return;
+
+        const targetResort = (isolatedIssue.map_resort || 'TPI').toUpperCase();
+        if (targetResort !== activeResort.toUpperCase()) {
+            setActiveResort(targetResort);
+        }
+
+        const ix = parseFloat(isolatedIssue.map_x);
+        const iy = parseFloat(isolatedIssue.map_y);
+        if (isNaN(ix) || isNaN(iy)) return;
+
+        setActiveSelection({
+            type: 'cluster',
+            resort: targetResort,
+            x: ix,
+            y: iy,
+            issues: [isolatedIssue],
+            label: isolatedIssue.map_label || isolatedIssue.location || isolatedIssue.title,
+        });
+        setCustomPinLabel(isolatedIssue.map_label || '');
+
+        const targetZoom = 1.8;
+        setZoom(targetZoom);
+
+        const timer = setTimeout(() => {
+            if (mapImageRef.current) {
+                const img = mapImageRef.current;
+                const imgW = img.offsetWidth || 1000;
+                const imgH = img.offsetHeight || 600;
+                const targetPixelX = (ix / 100) * imgW;
+                const targetPixelY = (iy / 100) * imgH;
+
+                const newPanX = (imgW / 2 - targetPixelX) * targetZoom;
+                const newPanY = (imgH / 2 - targetPixelY) * targetZoom;
+
+                setPan({ x: Math.round(newPanX), y: Math.round(newPanY) });
+            }
+        }, 120);
+
+        return () => clearTimeout(timer);
+    }, [isolatedIssue, activeResort]);
 
     // 7. Toast Notification
     const [toastMessage, setToastMessage] = useState(null);
@@ -127,6 +204,11 @@ export default function LeanInteractiveMapView({
                 return false;
             }
 
+            // Mode Isolasi: jika sedang memfokuskan 1 isu tertentu
+            if (isolatedIssueId) {
+                return String(iss.id) === String(isolatedIssueId);
+            }
+
             if (selectedDeptFilter !== 'all') {
                 const depts = Array.isArray(iss.target_departments) ? iss.target_departments : [iss.department];
                 if (!depts.includes(selectedDeptFilter)) return false;
@@ -138,7 +220,16 @@ export default function LeanInteractiveMapView({
 
             const createdAt = iss.created_at ? new Date(iss.created_at).getTime() : now;
             if (timeFilter === 'all_active') {
-                return iss.status !== 'resolved';
+                // Jika user secara eksplisit memilih status resolved di dropdown filter
+                if (selectedStatusFilter === 'resolved') {
+                    return true;
+                }
+                // Default: Isu aktif selalu tampil. Isu resolved hanya tampil jika diselesaikan HARI INI (WIB).
+                // Besoknya otomatis hilang dari peta.
+                if (iss.status === 'resolved') {
+                    return isResolvedTodayWib(iss);
+                }
+                return true;
             } else if (timeFilter === '24h') {
                 return (now - createdAt) / (1000 * 60 * 60) <= 24;
             } else if (timeFilter === '7d') {
@@ -152,7 +243,7 @@ export default function LeanInteractiveMapView({
 
             return true;
         });
-    }, [resortIssues, selectedDeptFilter, selectedStatusFilter, timeFilter, customStartDate, customEndDate]);
+    }, [resortIssues, isolatedIssueId, selectedDeptFilter, selectedStatusFilter, timeFilter, customStartDate, customEndDate, isResolvedTodayWib]);
 
     // Issues without coordinates (unmapped) for current resort
     const unmappedIssues = useMemo(() => {
@@ -481,6 +572,7 @@ export default function LeanInteractiveMapView({
                     <button
                         type="button"
                         onClick={() => {
+                            if (isolatedIssueId) handleClearIsolation();
                             setActiveResort('TPI');
                             setActiveSelection(null);
                             setPendingIssueToPin(null);
@@ -505,6 +597,7 @@ export default function LeanInteractiveMapView({
                     <button
                         type="button"
                         onClick={() => {
+                            if (isolatedIssueId) handleClearIsolation();
                             setActiveResort('TBR');
                             setActiveSelection(null);
                             setPendingIssueToPin(null);
@@ -730,7 +823,10 @@ export default function LeanInteractiveMapView({
                         <Clock className="w-3.5 h-3.5 text-emerald-500 mr-2 shrink-0" />
                         <select
                             value={timeFilter}
-                            onChange={(e) => setTimeFilter(e.target.value)}
+                            onChange={(e) => {
+                                setTimeFilter(e.target.value);
+                                if (isolatedIssueId) handleClearIsolation();
+                            }}
                             className="bg-transparent font-bold text-xs border-none focus:outline-none cursor-pointer pr-4"
                         >
                             <option value="all_active" className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-800'}>
@@ -759,7 +855,10 @@ export default function LeanInteractiveMapView({
                     >
                         <select
                             value={selectedDeptFilter}
-                            onChange={(e) => setSelectedDeptFilter(e.target.value)}
+                            onChange={(e) => {
+                                setSelectedDeptFilter(e.target.value);
+                                if (isolatedIssueId) handleClearIsolation();
+                            }}
                             className="bg-transparent font-semibold text-xs border-none focus:outline-none cursor-pointer pr-4"
                         >
                             <option value="all" className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-800'}>
@@ -781,7 +880,10 @@ export default function LeanInteractiveMapView({
                     >
                         <select
                             value={selectedStatusFilter}
-                            onChange={(e) => setSelectedStatusFilter(e.target.value)}
+                            onChange={(e) => {
+                                setSelectedStatusFilter(e.target.value);
+                                if (isolatedIssueId) handleClearIsolation();
+                            }}
                             className="bg-transparent font-semibold text-xs border-none focus:outline-none cursor-pointer pr-4"
                         >
                             <option value="all" className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-800'}>
@@ -889,7 +991,26 @@ export default function LeanInteractiveMapView({
                     onTouchMove={handleTouchMove}
                 >
                     {/* FLOATING ACTION BANNER */}
-                    {pendingIssueToPin ? (
+                    {isolatedIssue ? (
+                        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 px-4 py-2.5 rounded-2xl bg-slate-900/95 text-white text-xs font-semibold shadow-2xl border border-emerald-500/60 flex items-center gap-3 backdrop-blur-md animate-in fade-in slide-in-from-top-2">
+                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-emerald-400 font-bold">{isEn ? 'Focused Issue:' : 'Isu Terfokus:'}</span>
+                                <span className="max-w-[200px] sm:max-w-[340px] truncate">
+                                    #{isolatedIssue.issue_code || isolatedIssue.id} - {isolatedIssue.title}
+                                </span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleClearIsolation}
+                                className="ml-1 px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95"
+                                title={isEn ? 'Show all issues on the map' : 'Tampilkan seluruh isu di peta'}
+                            >
+                                <X className="w-3.5 h-3.5" />
+                                <span>{isEn ? 'Show All Issues' : 'Tampilkan Semua Isu'}</span>
+                            </button>
+                        </div>
+                    ) : pendingIssueToPin ? (
                         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-xl bg-amber-500 text-slate-950 text-xs font-black shadow-2xl border-2 border-white flex items-center gap-2 animate-bounce">
                             <MapPin className="w-4 h-4 animate-pulse" />
                             <span>

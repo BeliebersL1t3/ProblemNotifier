@@ -266,26 +266,17 @@ export default function LeanIndex({
     const [activeAnalyticsTab, setActiveAnalyticsTab] = useState('executive');
     const [focusMapRequest, setFocusMapRequest] = useState(null);
     const [returnTicket, setReturnTicket] = useState(null);
+    const [focusedMapIssueId, setFocusedMapIssueId] = useState(null);
 
     const handleNavigateToMap = (issue) => {
         if (!issue) return;
-        const res = resolveIssueResortAndZone(issue);
-        if (res.isOffice || !res.resort) return;
-
         setReturnTicket({
             issue,
             previousViewMode: viewMode,
         });
         setSelectedDetailIssue(null);
-        handleViewModeChange('analytics');
-        setActiveAnalyticsTab('executive');
-        setFocusMapRequest({
-            resort: res.resort,
-            zoneId: res.zoneId,
-            timestamp: Date.now(),
-            issueTitle: issue.title,
-            issueId: issue.id,
-        });
+        setFocusedMapIssueId(issue.id);
+        handleViewModeChange('map');
     };
 
     // Quick Sort Mode: 'status' | 'newest' | 'oldest' | 'waiting_acc'
@@ -507,6 +498,15 @@ export default function LeanIndex({
                 params.delete('issue');
                 params.delete('id');
                 params.delete('search');
+                shouldCleanUrl = true;
+            }
+
+            const focusMapParam = params.get('focus_map') || params.get('map_issue');
+            if (focusMapParam) {
+                setFocusedMapIssueId(focusMapParam);
+                handleViewModeChange('map');
+                params.delete('focus_map');
+                params.delete('map_issue');
                 shouldCleanUrl = true;
             }
 
@@ -2275,6 +2275,8 @@ export default function LeanIndex({
                         currentUser={currentUser}
                         onSelectIssue={setSelectedDetailIssue}
                         onOpenCreateIssue={handleOpenCreateIssueFromMap}
+                        focusedIssueId={focusedMapIssueId}
+                        onClearFocusIssue={() => setFocusedMapIssueId(null)}
                         isDark={isDark}
                         isEn={isEn}
                     />
@@ -4643,15 +4645,32 @@ export default function LeanIndex({
                                     </h3>
                                 )}
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => setSelectedDetailIssue(null)}
-                                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors shrink-0 ${
-                                    isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900'
-                                }`}
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center gap-2 shrink-0">
+                                {activeDetailIssue.map_x != null && activeDetailIssue.map_y != null && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleNavigateToMap(activeDetailIssue)}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer ${
+                                            isDark
+                                                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/40 ring-1 ring-emerald-400/30'
+                                                : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200'
+                                        }`}
+                                        title={isEn ? 'Show and focus on the Island Map' : 'Tampilkan dan fokuskan di Peta Lapangan'}
+                                    >
+                                        <MapPin className="w-3.5 h-3.5" />
+                                        <span>{isEn ? 'Show on Map' : 'Tampilkan di Map'}</span>
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedDetailIssue(null)}
+                                    className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors shrink-0 ${
+                                        isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900'
+                                    }`}
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
 
                         {/* Body Modal (Scrollable) */}
@@ -4781,7 +4800,9 @@ export default function LeanIndex({
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                 {visibleColumns.location && (() => {
                                     const locInfo = resolveIssueResortAndZone(activeDetailIssue);
-                                    const canNavigate = !locInfo.isOffice && (locInfo.resort === 'TBR' || locInfo.resort === 'TPI');
+                                    const hasMapPin = activeDetailIssue.map_x != null && activeDetailIssue.map_y != null;
+                                    const canNavigate = hasMapPin || (!locInfo.isOffice && (locInfo.resort === 'TBR' || locInfo.resort === 'TPI'));
+                                    const mapResortName = (activeDetailIssue.map_resort || locInfo.resort || 'Map').toUpperCase();
 
                                     return (
                                         <div
@@ -4797,7 +4818,7 @@ export default function LeanIndex({
                                             }`}
                                             title={
                                                 canNavigate
-                                                    ? (isEn ? `Click to view location pin on ${locInfo.resort} Map` : `Klik untuk melihat titik lokasi pada Denah ${locInfo.resort}`)
+                                                    ? (isEn ? `Click to view and focus location pin on ${mapResortName} Map` : `Klik untuk melihat dan fokuskan titik lokasi pada Denah ${mapResortName}`)
                                                     : (isEn ? 'Office Location (Island map not available)' : 'Lokasi Kantor / Office (Denah pulau tidak tersedia)')
                                             }
                                         >
@@ -4809,7 +4830,7 @@ export default function LeanIndex({
                                                             ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 group-hover:bg-emerald-500 group-hover:text-slate-950'
                                                             : 'bg-emerald-100 text-emerald-800 border-emerald-200 group-hover:bg-emerald-600 group-hover:text-white'
                                                     }`}>
-                                                        <span>{isEn ? `${locInfo.resort} Map` : `Peta ${locInfo.resort}`}</span>
+                                                        <span>{isEn ? `${mapResortName} Map` : `Peta ${mapResortName}`}</span>
                                                         <ExternalLink className="w-2.5 h-2.5" />
                                                     </span>
                                                 ) : (
