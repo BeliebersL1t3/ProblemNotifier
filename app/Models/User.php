@@ -130,9 +130,14 @@ class User extends Authenticatable
         return $this->role === 'admin';
     }
 
+    public function isSupervisor(): bool
+    {
+        return (bool) $this->is_hod;
+    }
+
     public function isHOD(): bool
     {
-        return false;
+        return (bool) $this->is_hod;
     }
 
     public function isDepartmentUser(): bool
@@ -192,7 +197,7 @@ class User extends Authenticatable
         });
     }
 
-    public function scopeHodsOfDepartment($query, string $dept)
+    public function scopeSupervisorsOfDepartment($query, string $dept)
     {
         return $query->where('is_hod', true)
             ->where('is_active', true)
@@ -200,6 +205,11 @@ class User extends Authenticatable
                 $q->whereRaw('LOWER(department) = ?', [strtolower(trim($dept))])
                   ->orWhere('department', 'like', "%{$dept}%");
             });
+    }
+
+    public function scopeHodsOfDepartment($query, string $dept)
+    {
+        return $this->scopeSupervisorsOfDepartment($query, $dept);
     }
 
     public function scopeActiveApproved($query)

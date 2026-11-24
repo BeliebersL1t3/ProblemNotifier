@@ -22,6 +22,8 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
     const [role, setRole] = useState('department');
     const [department, setDepartment] = useState('');
     const [subdivision, setSubdivision] = useState('');
+    const [isSupervisor, setIsSupervisor] = useState(false);
+    const [supervisorTitle, setSupervisorTitle] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [showAdvancedPermissions, setShowAdvancedPermissions] = useState(false);
@@ -48,6 +50,8 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                 setRole(user.role || 'department');
                 setDepartment(user.department || '');
                 setSubdivision(user.subdivision || '');
+                setIsSupervisor(Boolean(user.is_supervisor || user.is_hod));
+                setSupervisorTitle(user.hod_title || '');
                 setPassword('');
                 setPermissions({
                     can_view_all_departments: user.permissions?.can_view_all_departments ?? (user.role === 'admin'),
@@ -62,6 +66,8 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                 setRole('department');
                 setDepartment('HR');
                 setSubdivision('');
+                setIsSupervisor(false);
+                setSupervisorTitle('');
                 const randNum = Math.floor(100 + Math.random() * 900);
                 setPassword(`telunas${randNum}`);
                 setPermissions({
@@ -155,8 +161,9 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
             department: role === 'admin' ? null : department,
             subdivision: effectiveSubdivision,
             whatsapp_number: whatsappNumber,
-            is_hod: false,
-            hod_title: null,
+            is_supervisor: role !== 'admin' && isSupervisor,
+            is_hod: role !== 'admin' && isSupervisor,
+            hod_title: role !== 'admin' && isSupervisor ? (supervisorTitle.trim() || `Supervisor ${department || ''}`.trim()) : null,
             permissions: isEdit ? { ...(user?.permissions || {}), ...permissions } : permissions,
             ...(password ? { password } : {}),
         };
@@ -425,6 +432,64 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                                             </select>
                                         )}
                                     </div>
+                                </div>
+
+                                {/* Penandaan Supervisor Departemen */}
+                                <div className={`mt-3 p-3 rounded-xl border transition-all ${
+                                    isSupervisor
+                                        ? isDark
+                                            ? 'bg-emerald-950/30 border-emerald-500/50 text-white'
+                                            : 'bg-emerald-50/80 border-emerald-300 text-slate-900'
+                                        : isDark
+                                            ? 'bg-slate-900/50 border-slate-800 text-slate-300'
+                                            : 'bg-slate-50 border-slate-200 text-slate-700'
+                                }`}>
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <ShieldCheck className={`h-4 w-4 shrink-0 ${isSupervisor ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : (isDark ? 'text-slate-400' : 'text-slate-500')}`} />
+                                            <div>
+                                                <div className="text-xs font-bold flex items-center gap-1.5">
+                                                    <span>Tetapkan sebagai Supervisor Departemen</span>
+                                                    {isSupervisor && (
+                                                        <span className="text-[10px] bg-emerald-600 text-white px-1.5 py-0.2 rounded-md font-extrabold uppercase">
+                                                            SPV
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                    Menerima notifikasi langsung via WhatsApp (DM) untuk setiap isu baru di departemen ini.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <input
+                                            type="checkbox"
+                                            id="isSupervisorCheckbox"
+                                            checked={isSupervisor}
+                                            onChange={e => {
+                                                const checked = e.target.checked;
+                                                setIsSupervisor(checked);
+                                                if (checked && !supervisorTitle) {
+                                                    setSupervisorTitle(`Supervisor ${department || ''}`.trim());
+                                                }
+                                            }}
+                                            className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer"
+                                        />
+                                    </div>
+
+                                    {isSupervisor && (
+                                        <div className="mt-2.5 pt-2.5 border-t border-emerald-500/20">
+                                            <label className={`block text-[11px] font-bold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                                Gelar / Jabatan Supervisor (Opsional)
+                                            </label>
+                                            <Input
+                                                type="text"
+                                                value={supervisorTitle}
+                                                onChange={e => setSupervisorTitle(e.target.value)}
+                                                placeholder={`cth. Supervisor ${department || 'Departemen'}`}
+                                                className={`text-xs ${isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'}`}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}

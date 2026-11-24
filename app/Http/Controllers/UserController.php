@@ -145,8 +145,9 @@ class UserController extends Controller
                 'department'            => $user->department,
                 'subdivision'           => $user->subdivision,
                 'whatsapp_number'       => $user->whatsapp_number,
-                'is_hod'                => false,
-                'hod_title'             => null,
+                'is_supervisor'         => (bool) $user->is_hod,
+                'is_hod'                => (bool) $user->is_hod,
+                'hod_title'             => $user->hod_title,
                 'approval_status'       => 'approved',
                 'pending_ticket_number' => null,
                 'pending_ticket_id'     => null,
@@ -171,7 +172,8 @@ class UserController extends Controller
                 COUNT(*) as total_users,
                 SUM(CASE WHEN role = "admin" THEN 1 ELSE 0 END) as total_admins,
                 SUM(CASE WHEN role = "department" THEN 1 ELSE 0 END) as total_departments,
-                0 as total_hod,
+                SUM(CASE WHEN is_hod = 1 AND is_active = 1 THEN 1 ELSE 0 END) as total_supervisors,
+                SUM(CASE WHEN is_hod = 1 AND is_active = 1 THEN 1 ELSE 0 END) as total_hod,
                 SUM(CASE WHEN whatsapp_number IS NOT NULL AND whatsapp_number != "" THEN 1 ELSE 0 END) as total_whatsapp
             ')
             ->first();
@@ -265,8 +267,8 @@ class UserController extends Controller
             'department'      => $department,
             'subdivision'     => $subdivision,
             'whatsapp_number' => $cleanPhone,
-            'is_hod'          => false,
-            'hod_title'       => null,
+            'is_hod'          => (bool) ($request->boolean('is_supervisor') || $request->boolean('is_hod')),
+            'hod_title'       => $validated['hod_title'] ?? ($request->boolean('is_supervisor') ? 'Supervisor' : null),
             'approval_status' => 'approved',
             'is_active'       => true,
             'notify_whatsapp_tickets' => true,
@@ -360,7 +362,8 @@ class UserController extends Controller
             'department'      => $user->department,
             'subdivision'     => $user->subdivision,
             'whatsapp_number' => $user->whatsapp_number,
-            'is_hod'          => false,
+            'is_hod'          => (bool) $user->is_hod,
+            'hod_title'       => $user->hod_title,
             'is_active'       => $user->is_active,
             'permissions'     => $user->permissions,
         ];
@@ -438,8 +441,10 @@ class UserController extends Controller
         }
 
         $actingAdmin = auth()->user();
-        $user->is_hod = false;
-        $user->hod_title = null;
+        if ($request->has('is_supervisor') || $request->has('is_hod')) {
+            $user->is_hod = (bool) ($request->boolean('is_supervisor') || $request->boolean('is_hod'));
+            $user->hod_title = $request->input('hod_title') ?: ($user->is_hod ? 'Supervisor' : null);
+        }
         if ($request->has('is_active')) {
             $user->is_active = $request->boolean('is_active');
         }
@@ -490,6 +495,9 @@ class UserController extends Controller
             'department'      => $user->department,
             'subdivision'     => $user->subdivision,
             'whatsapp_number' => $user->whatsapp_number,
+            'is_supervisor'   => (bool) $user->is_hod,
+            'is_hod'          => (bool) $user->is_hod,
+            'hod_title'       => $user->hod_title,
             'permissions'     => $user->permissions,
             'password_reset'  => $passwordChanged,
         ];

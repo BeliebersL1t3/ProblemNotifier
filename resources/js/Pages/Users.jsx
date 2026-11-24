@@ -881,7 +881,20 @@ function UsersInner({ initialUsers, initialStats }) {
                                                 </div>
 
                                                 {/* Role Badge */}
-                                                <div className="shrink-0">
+                                                <div className="shrink-0 flex items-center gap-1">
+                                                    {Boolean(u.is_supervisor || u.is_hod) && (
+                                                        <span
+                                                            title={u.hod_title || 'Supervisor Departemen'}
+                                                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[9.5px] font-extrabold border ${
+                                                                isDark
+                                                                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                                                    : 'bg-amber-50 text-amber-800 border-amber-300'
+                                                            }`}
+                                                        >
+                                                            <ShieldCheck className="h-2.5 w-2.5 text-amber-500" />
+                                                            SPV
+                                                        </span>
+                                                    )}
                                                     {u.role === 'admin' ? (
                                                         <span
                                                             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-extrabold border ${
@@ -1121,29 +1134,44 @@ function UsersInner({ initialUsers, initialStats }) {
 
                                                         {/* Role */}
                                                         <td className="py-3 px-4">
-                                                            {u.role === 'admin' ? (
-                                                                <span
-                                                                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold border ${
-                                                                        isDark
-                                                                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                                                                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                                                    }`}
-                                                                >
-                                                                    <ShieldCheck className="h-3.5 w-3.5" />
-                                                                    Administrator
-                                                                </span>
-                                                            ) : (
-                                                                <span
-                                                                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold border ${
-                                                                        isDark
-                                                                            ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
-                                                                            : 'bg-sky-50 text-sky-700 border-sky-200'
-                                                                    }`}
-                                                                >
-                                                                    <Building2 className="h-3.5 w-3.5" />
-                                                                    Department
-                                                                </span>
-                                                            )}
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                {u.role === 'admin' ? (
+                                                                    <span
+                                                                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold border ${
+                                                                            isDark
+                                                                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                                                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                                        }`}
+                                                                    >
+                                                                        <ShieldCheck className="h-3.5 w-3.5" />
+                                                                        Administrator
+                                                                    </span>
+                                                                ) : (
+                                                                    <span
+                                                                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold border ${
+                                                                            isDark
+                                                                                ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                                                                                : 'bg-sky-50 text-sky-700 border-sky-200'
+                                                                        }`}
+                                                                    >
+                                                                        <Building2 className="h-3.5 w-3.5" />
+                                                                        Department
+                                                                    </span>
+                                                                )}
+                                                                {Boolean(u.is_supervisor || u.is_hod) && (
+                                                                    <span
+                                                                        title={u.hod_title || 'Supervisor Departemen'}
+                                                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-extrabold border ${
+                                                                            isDark
+                                                                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                                                                : 'bg-amber-50 text-amber-800 border-amber-300'
+                                                                        }`}
+                                                                    >
+                                                                        <ShieldCheck className="h-3 w-3 text-amber-500" />
+                                                                        {u.hod_title || 'SPV'}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </td>
 
                                                         {/* Department & Subdiv */}

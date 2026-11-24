@@ -245,6 +245,125 @@ class TicketNotificationService
     }
 
     /**
+     * Resolve active supervisors for a department with automatic failover if a supervisor resigns / is inactive.
+     *
+     * @param string $department
+     * @return array{recipients: \Illuminate\Support\Collection, is_fallback: bool, fallback_reason: ?string}
+     */
+    public static function resolveActiveSupervisors(string $department): array
+    {
+        $cleanDept = trim($department);
+        if ($cleanDept === '') {
+            $cleanDept = 'Umum';
+        }
+
+        // 1. Search for active supervisor(s) in the target department
+        $supervisors = User::supervisorsOfDepartment($cleanDept)
+            ->whereNotNull('whatsapp_number')
+            ->where('whatsapp_number', '!=', '')
+            ->get();
+
+        if ($supervisors->isNotEmpty()) {
+            return [
+                'recipients'      => $supervisors,
+                'is_fallback'     => false,
+                'fallback_reason' => null,
+            ];
+        }
+
+        // 2. Check if there were supervisors who resigned / are inactive in this department
+        $resignedSupervisors = User::where('is_hod', true)
+            ->where('is_active', false)
+            ->where(function ($q) use ($cleanDept) {
+                $q->whereRaw('LOWER(department) = ?', [strtolower($cleanDept)])
+                  ->orWhere('department', 'like', "%{$cleanDept}%");
+            })
+            ->pluck('name')
+            ->toArray();
+
+        $fallbackReason = !empty($resignedSupervisors)
+            ? "Supervisor departemen {$cleanDept} (" . implode(', ', $resignedSupervisors) . ") saat ini tidak aktif / telah resign. Notifikasi dialihkan otomatis ke Administrator."
+            : "Departemen {$cleanDept} belum memiliki supervisor aktif. Notifikasi dialihkan otomatis ke Administrator.";
+
+        // 3. Fallback to active Admins so no ticket notice is ever lost
+        $admins = User::where('role', 'admin')
+            ->where('is_active', true)
+            ->whereNotNull('whatsapp_number')
+            ->where('whatsapp_number', '!=', '')
+            ->get();
+
+        return [
+            'recipients'      => $admins,
+            'is_fallback'     => true,
+            'fallback_reason' => $fallbackReason,
+        ];
+    }
+
+    /**
+     * Send direct WhatsApp DM & in-app dashboard notification to active Supervisor(s) of the target department,
+     * with automatic failover to Admin if the supervisor has resigned or is inactive.
+     */
+    public static function notifyDepartmentSupervisor($issue, string $action = 'created'): void
+    {
+        $targetDepts = is_array($issue->target_departments) ? $issue->target_departments : [];
+        $targetDept = $targetDepts[0] ?? $issue->department ?? 'Umum';
+
+        $resolved = self::resolveActiveSupervisors($targetDept);
+        $recipients = $resolved['recipients'];
+        $isFallback = $resolved['is_fallback'];
+        $fallbackReason = $resolved['fallback_reason'];
+
+        if ($recipients->isEmpty()) {
+            Log::warning("[Supervisor Notice] No active supervisor or admin found with WhatsApp number for dept {$targetDept}");
+            return;
+        }
+
+        $issueCode = method_exists($issue, 'getFormattedCode') ? $issue->getFormattedCode() : ($issue->issue_code ?: $issue->id);
+        $tailscaleLink = self::getTailscaleAppUrl("/lapangan?focus={$issueCode}");
+        
+        $actionTitle = $action === 'transferred' ? 'Pengalihan Isu' : 'Laporan Isu Baru';
+        $desc = trim((string) ($issue->description ?: '-'));
+        $location = $issue->location ?: '-';
+        $reporter = $issue->reporter_name ?: 'Staf';
+        $reporterDept = $issue->reporter_dept ? " ({$issue->reporter_dept})" : '';
+
+        foreach ($recipients as $recipient) {
+            $spvTitle = $recipient->hod_title ?: ($recipient->role === 'admin' ? 'Administrator' : 'Supervisor ' . $targetDept);
+            $spvName = $recipient->staff_name ?: $recipient->name;
+
+            // In-app dashboard notification
+            self::createDashboardNotification([
+                'user_id'     => $recipient->id,
+                'department'  => $targetDept,
+                'role_target' => $recipient->role === 'admin' ? 'admin' : 'supervisor',
+                'type'        => 'issue_assigned',
+                'title'       => "🔔 {$actionTitle} ({$issueCode})",
+                'message'     => "Isu #{$issueCode} [{$targetDept}]: {$issue->title} di {$location}. Perlu koordinasi penanganan.",
+                'link'        => "/lapangan?focus={$issueCode}",
+            ]);
+
+            // WhatsApp Direct DM
+            if ($recipient->notify_whatsapp_tickets !== false && !empty($recipient->whatsapp_number)) {
+                $fallbackNotice = $isFallback ? "⚠️ *[PERHATIAN]*\n_{$fallbackReason}_\n\n" : "";
+
+                $msg = "🔔 *PEMBERITAHUAN {$actionTitle} (SUPERVISOR)* 🔔\n\n"
+                     . "Halo *{$spvName}* ({$spvTitle}),\n"
+                     . "Terdapat laporan isu yang ditujukan ke departemen *{$targetDept}*:\n\n"
+                     . "• *ID Tiket:* #{$issueCode}\n"
+                     . "• *Masalah:* {$issue->title}\n"
+                     . "• *Lokasi:* {$location}\n"
+                     . "• *Pelapor:* {$reporter}{$reporterDept}\n"
+                     . "• *Deskripsi:* {$desc}\n\n"
+                     . $fallbackNotice
+                     . "Mohon dikoordinasikan dengan tim pelaksana lapangan untuk penanganan.\n\n"
+                     . "🔗 *Buka Tiket:* {$tailscaleLink}";
+
+                self::sendWhatsApp($recipient->whatsapp_number, $msg);
+            }
+        }
+    }
+
+    /**
      * Notify Admins for informational monitoring when a new user registers (pending HOD)
      */
     public static function notifyAdminsNewRegistration(ApprovalTicket $ticket): void
