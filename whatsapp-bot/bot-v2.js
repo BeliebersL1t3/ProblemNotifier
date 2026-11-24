@@ -909,7 +909,7 @@ async function startSock() {
                                     if (item.solver) listMsg += `   👤 Diselesaikan: ${item.solver}\n`;
                                 }
                                 if (item.map_x != null && item.map_y != null) {
-                                    listMsg += `   🗺️ Peta: ${PUBLIC_URL}/lapangan?focus_map=${encodeURIComponent(item.id)}\n`;
+                                    listMsg += `   🗺️ Peta: ${PUBLIC_URL}/lapangan/peta?focus_map=${encodeURIComponent(item.id)}\n`;
                                 }
                                 listMsg += `\n`;
                             });
@@ -1047,7 +1047,7 @@ async function startSock() {
                                 if (item.solver) listMsg += `   👤 Diselesaikan: ${item.solver}\n`;
                             }
                             if (item.map_x != null && item.map_y != null) {
-                                listMsg += `   🗺️ Peta: ${PUBLIC_URL}/lapangan?focus_map=${encodeURIComponent(item.id)}\n`;
+                                listMsg += `   🗺️ Peta: ${PUBLIC_URL}/lapangan/peta?focus_map=${encodeURIComponent(item.id)}\n`;
                             }
                             listMsg += `\n`;
                         });
@@ -1258,7 +1258,7 @@ async function startSock() {
                         const accurateLocation = createdData.location || state.data.location;
                         const hasMapCoords = createdData.map_x != null && createdData.map_y != null;
                         const mapDeepLinkLine = hasMapCoords
-                            ? `\n🗺️ *Lihat di Peta:* ${PUBLIC_URL}/lapangan?focus_map=${encodeURIComponent(issueId)}`
+                            ? `\n🗺️ *Lihat di Peta:* ${PUBLIC_URL}/lapangan/peta?focus_map=${encodeURIComponent(issueId)}`
                             : '';
 
                         // Confirmation to Reporter (source='whatsapp_bot' skips redundant DM from Laravel)

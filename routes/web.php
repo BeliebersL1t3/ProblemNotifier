@@ -126,6 +126,10 @@ Route::post('/telunas-wifi-bypass', [TelunasWifiBypassController::class, 'verify
 // Official Issue Tracker Routes — Mandatory Authentication
 Route::middleware('auth')->group(function () {
     Route::get('/lapangan', [LeanController::class, 'index'])->name('lean.index');
+    Route::get('/lapangan/peta', [LeanController::class, 'map'])->name('lean.map');
+    Route::get('/lapangan/analisis', [LeanController::class, 'analytics'])->name('lean.analytics');
+    Route::redirect('/peta', '/lapangan/peta');
+    Route::redirect('/analisis', '/lapangan/analisis');
     Route::post('/lapangan/issues', [LeanController::class, 'store'])->name('lean.store');
     Route::post('/lapangan/issues/{issue}/acc', [LeanController::class, 'acc'])->name('lean.acc');
     Route::post('/lapangan/issues/{issue}/claim', [LeanController::class, 'claim'])->name('lean.claim');

@@ -92,28 +92,12 @@ export function LeanHeader({
         };
     }, [fetchBotStatus]);
 
-    const handleViewSwitch = (targetView) => {
-        if (activePage === 'dashboard' && typeof onViewModeChange === 'function') {
-            onViewModeChange(targetView);
-        } else {
-            router.visit(`/?view=${targetView}`);
-        }
-    };
-
     const isDashboard = activePage === 'dashboard';
+    const isMap = activePage === 'map';
+    const isAnalytics = activePage === 'analytics';
     const isTickets = activePage === 'tickets';
     const isUsers = activePage === 'users';
     const isProfile = activePage === 'profile';
-
-    const viewBtnClass = (targetView) => {
-        const active = isDashboard && viewMode === targetView;
-        if (active) {
-            return 'bg-emerald-600 text-white shadow-sm keep-white ring-1 ring-white/25';
-        }
-        return isDark
-            ? 'text-slate-300 hover:text-white hover:bg-white/10'
-            : 'text-slate-600 hover:text-slate-900 hover:bg-white/60';
-    };
 
     const navChipBase =
         'h-7 sm:h-8 flex items-center justify-center gap-1.5 rounded-lg border text-xs font-bold transition-all shadow-xs shrink-0';
@@ -208,11 +192,10 @@ export function LeanHeader({
                             isDark ? 'liquid-glass-dark' : 'liquid-glass-light'
                         }`}
                     >
-                        <button
-                            type="button"
-                            onClick={() => handleViewSwitch('cards')}
+                        <Link
+                            href="/lapangan"
                             className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                isDashboard && (viewMode === 'cards' || viewMode === 'table')
+                                isDashboard
                                     ? 'bg-emerald-600 text-white shadow-sm keep-white ring-1 ring-white/25'
                                     : isDark
                                     ? 'text-slate-300 hover:text-white hover:bg-white/10'
@@ -222,25 +205,35 @@ export function LeanHeader({
                         >
                             <LayoutGrid className="w-3.5 h-3.5" />
                             <span>Dashboard</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => handleViewSwitch('map')}
-                            className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewBtnClass('map')}`}
+                        </Link>
+                        <Link
+                            href="/lapangan/peta"
+                            className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                isMap
+                                    ? 'bg-emerald-600 text-white shadow-sm keep-white ring-1 ring-white/25'
+                                    : isDark
+                                    ? 'text-slate-300 hover:text-white hover:bg-white/10'
+                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                            }`}
                             title={isEn ? 'Interactive Resort Pin Map' : 'Peta Denah Resort & Pin Isu'}
                         >
                             <MapPin className="w-3.5 h-3.5" />
                             <span>{isEn ? 'Map' : 'Peta'}</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => handleViewSwitch('analytics')}
-                            className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewBtnClass('analytics')}`}
-                            title={isEn ? 'Operational Statistics & Resort Map Analytics' : 'Analisa Statistik Operasional & Peta Resort'}
+                        </Link>
+                        <Link
+                            href="/lapangan/analisis"
+                            className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                isAnalytics
+                                    ? 'bg-emerald-600 text-white shadow-sm keep-white ring-1 ring-white/25'
+                                    : isDark
+                                    ? 'text-slate-300 hover:text-white hover:bg-white/10'
+                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                            }`}
+                            title={isEn ? 'Operational Statistics & SLA Analytics' : 'Analisa Statistik Operasional & SLA'}
                         >
                             <BarChart3 className="w-3.5 h-3.5" />
                             <span>{isEn ? 'Analytics' : 'Analisis'}</span>
-                        </button>
+                        </Link>
                     </div>
 
                     {/* Right Action Bar */}

@@ -62,8 +62,6 @@ import {
     getEtaBadgeInfo,
     getAutoTimerBadgeInfo,
 } from '@/Components/CampusFix/EtaPickerField';
-import { LeanAnalyticsView } from '@/Components/CampusFix/LeanAnalyticsView';
-import LeanInteractiveMapView from '@/Components/CampusFix/LeanInteractiveMapView';
 import { resolveIssueResortAndZone } from '@/constants/locations';
 import { DEPARTMENT_STAFF, normalizeDepartment } from '@/constants/staff';
 import { useLanguage } from '@/context/LanguageContext';
@@ -218,16 +216,14 @@ export default function LeanIndex({
     const [viewMode, setViewMode] = useState(() => {
         if (typeof window !== 'undefined') {
             const viewParam = new URLSearchParams(window.location.search).get('view');
-            if (viewParam === 'analytics') return 'analytics';
             if (viewParam === 'table') return 'table';
             if (viewParam === 'cards') return 'cards';
-            if (viewParam === 'map') return 'map';
             if (window.innerWidth < 768) return 'cards';
             try {
-                return localStorage.getItem('lean_erp_view_mode') || 'cards';
+                const saved = localStorage.getItem('lean_erp_view_mode');
+                if (saved === 'table' || saved === 'cards') return saved;
             } catch (err) {
                 console.warn('[LeanIndex] Failed reading lean_erp_view_mode:', err);
-                return 'cards';
             }
         }
         return 'cards';
@@ -241,11 +237,12 @@ export default function LeanIndex({
     }, [viewMode]);
 
     const handleViewModeChange = (nextView) => {
-        setViewMode(nextView);
+        const target = nextView === 'table' ? 'table' : 'cards';
+        setViewMode(target);
         if (typeof window !== 'undefined') {
             const url = new URL(window.location.href);
-            if (nextView === 'analytics' || nextView === 'map' || nextView === 'table') {
-                url.searchParams.set('view', nextView);
+            if (target === 'table') {
+                url.searchParams.set('view', 'table');
             } else {
                 url.searchParams.delete('view');
             }
@@ -263,12 +260,7 @@ export default function LeanIndex({
 
     const [searchQuery, setSearchQuery] = useState('');
     const [showColumnModal, setShowColumnModal] = useState(false);
-    const [activeAnalyticsTab, setActiveAnalyticsTab] = useState('executive');
-    const [focusMapRequest, setFocusMapRequest] = useState(null);
     const [returnTicket, setReturnTicket] = useState(null);
-    const [focusedMapIssueId, setFocusedMapIssueId] = useState(null);
-
-    const [pendingPinIssue, setPendingPinIssue] = useState(null);
 
     const canManageIssuePin = (iss) => {
         if (!iss || !currentUser) return false;
@@ -285,24 +277,12 @@ export default function LeanIndex({
 
     const handleNavigateToMap = (issue) => {
         if (!issue) return;
-        setReturnTicket({
-            issue,
-            previousViewMode: viewMode,
-        });
-        setSelectedDetailIssue(null);
-        setFocusedMapIssueId(issue.id);
-        handleViewModeChange('map');
+        router.visit(`/lapangan/peta?focus_map=${issue.id}`);
     };
 
     const handleStartPinningFromModal = (issue) => {
         if (!issue) return;
-        setReturnTicket({
-            issue,
-            previousViewMode: viewMode,
-        });
-        setSelectedDetailIssue(null);
-        setPendingPinIssue(issue);
-        handleViewModeChange('map');
+        router.visit(`/lapangan/peta?pin_issue=${issue.id}`);
     };
 
     // Quick Sort Mode: 'status' | 'newest' | 'oldest' | 'waiting_acc'
@@ -334,7 +314,7 @@ export default function LeanIndex({
 
     useEffect(() => {
         try {
-            if (viewMode !== 'table' || (typeof window !== 'undefined' && window.innerWidth >= 768)) {
+            if (viewMode === 'table' || viewMode === 'cards') {
                 localStorage.setItem('lean_erp_view_mode', viewMode);
             }
         } catch (err) {
@@ -484,14 +464,10 @@ export default function LeanIndex({
             let shouldCleanUrl = false;
 
             const viewParam = params.get('view');
-            if (viewParam === 'analytics') {
-                setViewMode('analytics');
-            } else if (viewParam === 'table') {
+            if (viewParam === 'table') {
                 setViewMode('table');
             } else if (viewParam === 'cards') {
                 setViewMode('cards');
-            } else if (viewParam === 'map') {
-                setViewMode('map');
             }
 
             const deptParam = params.get('dept');
@@ -508,7 +484,19 @@ export default function LeanIndex({
             const reportParam = params.get('report');
             if (reportParam === '1' || reportParam === 'true') {
                 setShowReportModal(true);
+                const rMapResort = params.get('map_resort');
+                const rMapX = params.get('map_x');
+                const rMapY = params.get('map_y');
+                const rMapLabel = params.get('map_label');
+                if (rMapResort) setFormMapResort(rMapResort);
+                if (rMapX) setFormMapX(parseFloat(rMapX));
+                if (rMapY) setFormMapY(parseFloat(rMapY));
+                if (rMapLabel) setFormMapLabel(rMapLabel);
                 params.delete('report');
+                params.delete('map_resort');
+                params.delete('map_x');
+                params.delete('map_y');
+                params.delete('map_label');
                 shouldCleanUrl = true;
             }
 
@@ -529,11 +517,8 @@ export default function LeanIndex({
 
             const focusMapParam = params.get('focus_map') || params.get('map_issue');
             if (focusMapParam) {
-                setFocusedMapIssueId(focusMapParam);
-                handleViewModeChange('map');
-                params.delete('focus_map');
-                params.delete('map_issue');
-                shouldCleanUrl = true;
+                router.visit(`/lapangan/peta?focus_map=${focusMapParam}`);
+                return;
             }
 
             if (shouldCleanUrl) {
@@ -1792,9 +1777,7 @@ export default function LeanIndex({
 
 
                 {/* ERP CONTROLS BAR: SEARCH, DEPT, SORT, VIEW MODE, STATUS CHECKLIST */}
-                {viewMode !== 'analytics' && viewMode !== 'map' && (
-                    <>
-                        <div className="space-y-2 mb-3">
+                <div className="space-y-2 mb-3">
                             {/* MOBILE ROW 1: MASTER SEARCH + ICON-ONLY VIEW SWITCHER & COLUMN CUSTOMIZER (ICON-FIRST) */}
                             <div className="flex sm:hidden items-center gap-1.5">
                                 <div className="relative flex-1 min-w-0">
@@ -2291,37 +2274,9 @@ export default function LeanIndex({
                         </button>
                     </div>
                 </div>
-                    </>
-                )}
 
-                {/* DATA PRESENTATION: MAP VIEW OR ANALYTICS VIEW OR EMPTY STATE OR ERP TABLE / CARDS */}
-                {viewMode === 'map' ? (
-                    <LeanInteractiveMapView
-                        issues={issues}
-                        currentUser={currentUser}
-                        onSelectIssue={setSelectedDetailIssue}
-                        onOpenCreateIssue={handleOpenCreateIssueFromMap}
-                        focusedIssueId={focusedMapIssueId}
-                        onClearFocusIssue={() => setFocusedMapIssueId(null)}
-                        initialPendingPinIssue={pendingPinIssue}
-                        onClearPendingPinIssue={() => setPendingPinIssue(null)}
-                        isDark={isDark}
-                        isEn={isEn}
-                    />
-                ) : viewMode === 'analytics' ? (
-                    <LeanAnalyticsView
-                        issues={issues}
-                        departments={departments}
-                        theme={theme}
-                        activeTab={activeAnalyticsTab}
-                        onTabChange={setActiveAnalyticsTab}
-                        onSelectIssue={setSelectedDetailIssue}
-                        focusMapRequest={focusMapRequest}
-                        spreadsheetUrl={spreadsheetUrl}
-                        monthGids={monthGids}
-                        unconnectedYearAlerts={unconnectedYearAlerts}
-                    />
-                ) : filteredIssues.length === 0 ? (
+                {/* DATA PRESENTATION: EMPTY STATE OR ERP TABLE / CARDS */}
+                {filteredIssues.length === 0 ? (
                     <div className="py-16 text-center border rounded-2xl p-6 liquid-glass-card">
                         <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-500 flex items-center justify-center mx-auto mb-3">
                             <CheckCircle2 className="w-6 h-6" />

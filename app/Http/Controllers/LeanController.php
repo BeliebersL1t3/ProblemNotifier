@@ -308,9 +308,9 @@ class LeanController extends Controller
     }
 
     /**
-     * Display the mobile-first lean dashboard.
+     * Build shared dataset for Lean views (Dashboard, Map, Analytics).
      */
-    public function index(Request $request)
+    protected function buildSharedLeanData(): array
     {
         $authUser = auth()->user();
         if (!$authUser) {
@@ -401,7 +401,7 @@ class LeanController extends Controller
         $needsAutoReconcile = $pendingSyncCount > 0 || \App\Services\LeanSheetDirectService::hasPendingClear();
         $unconnectedYearAlerts = $isAdmin ? app(\App\Services\LeanSheetDirectService::class)->getUnconnectedYearsWithPendingIssues() : [];
 
-        return Inertia::render('Lean/Index', [
+        return [
             'issues'                => $issues,
             'departments'           => self::DEPARTMENTS,
             'locations'             => self::MAIN_LOCATIONS,
@@ -411,7 +411,31 @@ class LeanController extends Controller
             'monthGids'             => $monthGids,
             'needsAutoReconcile'    => $needsAutoReconcile,
             'unconnectedYearAlerts' => $unconnectedYearAlerts,
-        ]);
+        ];
+    }
+
+    /**
+     * Display the mobile-first lean dashboard.
+     */
+    public function index(Request $request)
+    {
+        return Inertia::render('Lean/Index', $this->buildSharedLeanData());
+    }
+
+    /**
+     * Display the dedicated interactive island map page.
+     */
+    public function map(Request $request)
+    {
+        return Inertia::render('Lean/Map', $this->buildSharedLeanData());
+    }
+
+    /**
+     * Display the dedicated operational analytics & statistics page.
+     */
+    public function analytics(Request $request)
+    {
+        return Inertia::render('Lean/Analytics', $this->buildSharedLeanData());
     }
 
     /**
@@ -1926,7 +1950,7 @@ class LeanController extends Controller
     protected static function formatIssueMapLink(LeanIssue $issue, string $label = 'Lihat di Peta'): string
     {
         if ($issue->map_x !== null && $issue->map_y !== null) {
-            $url = TicketNotificationService::getTailscaleAppUrl("/lapangan?focus_map={$issue->id}");
+            $url = TicketNotificationService::getTailscaleAppUrl("/lapangan/peta?focus_map={$issue->id}");
             return "\n🗺️ *{$label}:* {$url}";
         }
         return '';
