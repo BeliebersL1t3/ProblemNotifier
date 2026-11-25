@@ -363,12 +363,12 @@ export function exportTelunasPdfReport({
     if ((stats.withEtaCount || 0) > 0) {
         const slaText = (stats.evaluatedSlaCount || 0) > 0
             ? (isEn
-                ? `ETA SLA Punctuality: ${stats.onTimeResolvedCount || 0}/${stats.evaluatedSlaCount} On Time (${stats.onTimeRate}%)`
-                : `Ketepatan ETA (SLA): ${stats.onTimeResolvedCount || 0}/${stats.evaluatedSlaCount} Tepat Waktu (${stats.onTimeRate}%)`)
-            : (isEn ? 'ETA SLA Punctuality: No resolved ETA tickets yet' : 'Ketepatan ETA (SLA): Belum ada tiket selesai ber-ETA');
+                ? `Escalation Timer Compliance: ${stats.onTimeResolvedCount || 0}/${stats.evaluatedSlaCount} Clean (${stats.onTimeRate}%)`
+                : `Kepatuhan Timer Eskalasi: ${stats.onTimeResolvedCount || 0}/${stats.evaluatedSlaCount} Tanpa Eskalasi (${stats.onTimeRate}%)`)
+            : (isEn ? 'Escalation Timer Compliance: No resolved tickets yet' : 'Kepatuhan Timer Eskalasi: Belum ada tiket selesai');
         const overdueText = isEn
-            ? `Active Overdue ETA: ${stats.overdueActiveCount || 0} ticket(s) | Tickets with ETA: ${stats.withEtaCount}`
-            : `Aktif Melewati ETA: ${stats.overdueActiveCount || 0} tiket | Tiket Memiliki Target ETA: ${stats.withEtaCount}`;
+            ? `Active Escalated (1h/3h+): ${stats.overdueActiveCount || 0} ticket(s) | Tracked: ${stats.withEtaCount}`
+            : `Aktif Eskalasi (1j/3j+): ${stats.overdueActiveCount || 0} tiket | Terpantau Timer: ${stats.withEtaCount}`;
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(7.5);
@@ -1368,7 +1368,7 @@ export function LeanAnalyticsView({
         return sorted.length > 6 ? sorted.slice(-6) : sorted;
     }, [issues, trendPeriodMode, isEn, selectedYear]);
 
-    // 2. SLA Target Completion Donut Data
+    // 2. Auto Progress Timer & Escalation Donut Data (1h Group / 3h Owner)
     const slaDonutData = useMemo(() => {
         const onTime = stats.onTimeResolvedCount || 0;
         const late = (stats.lateResolvedCount || 0) + (stats.overdueActiveCount || 0);
@@ -1376,17 +1376,17 @@ export function LeanAnalyticsView({
 
         const data = [
             {
-                name: isEn ? 'Resolved On Time' : 'Selesai Tepat Waktu',
+                name: isEn ? 'Resolved Clean (No Escalation)' : 'Selesai Tanpa Eskalasi',
                 value: onTime,
                 color: '#10b981', // emerald-500
             },
             {
-                name: isEn ? 'Late / Overdue' : 'Lewat Target (Telat / Overdue)',
+                name: isEn ? 'Escalated (1h/3h+ No Update)' : 'Kena Eskalasi (1j/3j+)',
                 value: late,
                 color: '#f43f5e', // rose-500
             },
             {
-                name: isEn ? 'Active (On Track)' : 'Berjalan (Masih Aman)',
+                name: isEn ? 'Active / Paused (Safe)' : 'Aktif / Dijeda (Aman)',
                 value: activeScheduled,
                 color: '#0284c7', // sky-600
             },
@@ -1732,7 +1732,7 @@ export function LeanAnalyticsView({
                                         ? (isDark ? 'bg-sky-950/80 border-sky-800/60 text-sky-300' : 'bg-sky-100 border-sky-300 text-sky-800')
                                         : (isDark ? 'bg-amber-950/80 border-amber-800/60 text-amber-300' : 'bg-amber-100 border-amber-300 text-amber-800')
                                 }`}>
-                                    {stats.onTimeRate}% {isEn ? 'On-Time SLA' : 'Tepat ETA'}
+                                    {stats.onTimeRate}% {isEn ? 'Clean' : 'Tanpa Eskalasi'}
                                 </span>
                             )}
                         </div>
@@ -1770,7 +1770,7 @@ export function LeanAnalyticsView({
                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                                     isDark ? 'bg-rose-950/90 border-rose-600/60 text-rose-300' : 'bg-rose-50 border-rose-400 text-rose-700'
                                 }`}>
-                                    {stats.overdueActiveCount} {isEn ? 'Overdue ETA' : 'Lewat ETA'}
+                                    {stats.overdueActiveCount} {isEn ? 'Escalated (1h/3h+)' : 'Eskalasi (1j/3j+)'}
                                 </span>
                             )}
                         </div>
@@ -1916,8 +1916,8 @@ export function LeanAnalyticsView({
                             setSelectedPerfModal({
                                 title: isEn ? 'Oldest Unresolved Issues' : 'Daftar Isu Aktif Terlama',
                                 subtitle: isEn
-                                    ? `${performanceMetrics.oldestActiveList.length} active tickets • ${performanceMetrics.activeOverdueEtaCount} past ETA • ${performanceMetrics.activeOver7dCount} waiting > 7 days`
-                                    : `${performanceMetrics.oldestActiveList.length} tiket aktif • ${performanceMetrics.activeOverdueEtaCount} lewat ETA • ${performanceMetrics.activeOver7dCount} tunggu > 7 hari`,
+                                    ? `${performanceMetrics.oldestActiveList.length} active tickets • ${performanceMetrics.activeOverdueEtaCount} escalated (1h/3h+) • ${performanceMetrics.activeOver7dCount} waiting > 7 days`
+                                    : `${performanceMetrics.oldestActiveList.length} tiket aktif • ${performanceMetrics.activeOverdueEtaCount} eskalasi (1j/3j+) • ${performanceMetrics.activeOver7dCount} tunggu > 7 hari`,
                                 accent: 'rose',
                                 enableAgeFilters: true,
                                 items: performanceMetrics.oldestActiveList.map((o) => ({
@@ -1987,7 +1987,7 @@ export function LeanAnalyticsView({
 
                             const parts = [];
                             if (performanceMetrics.activeOverdueEtaCount > 0) {
-                                parts.push(isEn ? `${performanceMetrics.activeOverdueEtaCount} past ETA` : `${performanceMetrics.activeOverdueEtaCount} lewat ETA`);
+                                parts.push(isEn ? `${performanceMetrics.activeOverdueEtaCount} escalated (1h/3h+)` : `${performanceMetrics.activeOverdueEtaCount} eskalasi (1j/3j+)`);
                             }
                             if (performanceMetrics.activeOver7dCount > 0) {
                                 parts.push(isEn ? `${performanceMetrics.activeOver7dCount} > 7d` : `${performanceMetrics.activeOver7dCount} tunggu > 7 hari`);
@@ -2081,12 +2081,12 @@ export function LeanAnalyticsView({
                         </div>
                         <div>
                             <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                {isEn ? 'ETA & SLA Punctuality Overview' : 'Ringkasan Target Waktu Selesai (ETA) & SLA'}
+                                {isEn ? 'Auto Progress Timer & Escalation Overview' : 'Ringkasan Timer Progres & Eskalasi Otomatis'}
                             </span>
                             <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                 {isEn
-                                    ? `${stats.withEtaCount} ticket(s) have a target completion time in this period`
-                                    : `${stats.withEtaCount} tiket memiliki target waktu selesai pada periode ini`}
+                                    ? `${stats.withEtaCount} ticket(s) tracked by 1h Group / 3h Owner escalation timer in this period`
+                                    : `${stats.withEtaCount} tiket terpantau timer eskalasi otomatis (1j Grup / 3j Owner) pada periode ini`}
                             </p>
                         </div>
                     </div>
@@ -2099,8 +2099,8 @@ export function LeanAnalyticsView({
                                     : (isDark ? 'bg-amber-950/75 border-amber-700/60 text-amber-300' : 'bg-amber-50 border-amber-300 text-amber-800')
                             }`}>
                                 {isEn
-                                    ? `On Time: ${stats.onTimeResolvedCount}/${stats.evaluatedSlaCount} (${stats.onTimeRate}%)`
-                                    : `Tepat Waktu: ${stats.onTimeResolvedCount}/${stats.evaluatedSlaCount} (${stats.onTimeRate}%)`}
+                                    ? `Clean Resolved: ${stats.onTimeResolvedCount}/${stats.evaluatedSlaCount} (${stats.onTimeRate}%)`
+                                    : `Tanpa Eskalasi: ${stats.onTimeResolvedCount}/${stats.evaluatedSlaCount} (${stats.onTimeRate}%)`}
                             </span>
                         )}
                         <span className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold ${
@@ -2109,8 +2109,8 @@ export function LeanAnalyticsView({
                                 : (isDark ? 'bg-emerald-950/60 border-emerald-800/50 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-700')
                         }`}>
                             {stats.overdueActiveCount > 0
-                                ? (isEn ? `Active Overdue: ${stats.overdueActiveCount}` : `Aktif Lewat ETA: ${stats.overdueActiveCount}`)
-                                : (isEn ? 'All Active Tickets On Schedule' : 'Semua Tiket Aktif Sesuai ETA')}
+                                ? (isEn ? `Active Escalated (1h/3h+): ${stats.overdueActiveCount}` : `Aktif Eskalasi (1j/3j+): ${stats.overdueActiveCount}`)
+                                : (isEn ? 'All Active Tickets Safe (< 1h)' : 'Semua Tiket Aktif Aman (< 1j)')}
                         </span>
                     </div>
                 </div>
@@ -2128,8 +2128,8 @@ export function LeanAnalyticsView({
                         </h3>
                         <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                             {isEn
-                                ? 'Visual intelligence for monthly issue trends, SLA target compliance, department workloads, and resolution speed (MTTR)'
-                                : 'Visualisasi tren isu bulanan, kepatuhan target SLA, beban kerja departemen, serta kecepatan penyelesaian (MTTR) & performa tim'}
+                                ? 'Visual intelligence for monthly issue trends, auto escalation timer status (1h/3h), department workloads, and resolution speed (MTTR)'
+                                : 'Visualisasi tren isu bulanan, status timer eskalasi (1j/3j), beban kerja departemen, serta kecepatan penyelesaian (MTTR) & performa tim'}
                         </p>
                     </div>
                 </div>
@@ -2226,7 +2226,7 @@ export function LeanAnalyticsView({
                             <div className="flex items-center gap-2">
                                 <Clock className="w-4 h-4 text-emerald-400" />
                                 <h4 className={`text-xs sm:text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                    {isEn ? 'SLA Target Compliance' : 'Kepatuhan Target SLA'}
+                                    {isEn ? 'Progress Timer & Escalation Status' : 'Status Timer Progres & Eskalasi'}
                                 </h4>
                             </div>
                             <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
@@ -2234,7 +2234,7 @@ export function LeanAnalyticsView({
                                     ? isDark ? 'bg-emerald-950/80 text-emerald-300' : 'bg-emerald-100 text-emerald-800'
                                     : isDark ? 'bg-amber-950/80 text-amber-300' : 'bg-amber-100 text-amber-800'
                             }`}>
-                                {stats.onTimeRate !== null ? `${stats.onTimeRate}% ${isEn ? 'On Time' : 'Tepat Waktu'}` : (isEn ? 'No Data' : 'Belum Ada')}
+                                {stats.onTimeRate !== null ? `${stats.onTimeRate}% ${isEn ? 'Clean' : 'Tanpa Eskalasi'}` : (isEn ? 'No Data' : 'Belum Ada')}
                             </span>
                         </div>
                         <div className="relative w-full h-[240px] flex items-center justify-center">
@@ -2274,7 +2274,7 @@ export function LeanAnalyticsView({
                                     {stats.onTimeRate !== null ? `${stats.onTimeRate}%` : '-'}
                                 </span>
                                 <span className={`text-[10px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                    {isEn ? 'On Time' : 'Tepat Waktu'}
+                                    {isEn ? 'Clean' : 'Tanpa Eskalasi'}
                                 </span>
                             </div>
                         </div>
@@ -2828,7 +2828,7 @@ export function LeanAnalyticsView({
                                 },
                                 {
                                     key: 'overdue_eta',
-                                    label: isEn ? 'Past ETA' : 'Lewat ETA',
+                                    label: isEn ? 'Escalated (1h/3h+)' : 'Eskalasi 1j/3j+',
                                     count: allItems.filter((i) => i.isOverdueEta).length,
                                 },
                                 {
@@ -2936,19 +2936,19 @@ export function LeanAnalyticsView({
                                             <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                                 Dept: {(iss.target_departments || []).map(formatDeptDisplay).join(', ') || (isEn ? 'General' : 'Umum')}
                                             </span>
-                                            {iss.estimated_completion_at && (() => {
-                                                const etaBadge = getEtaBadgeInfo(iss, nowMs, isEn);
-                                                if (!etaBadge) return null;
+                                            {(() => {
+                                                const timerBadge = getEtaBadgeInfo(iss, nowMs, isEn);
+                                                if (!timerBadge || (!timerBadge.isEscalated && !timerBadge.isPaused)) return null;
                                                 return (
                                                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border flex items-center gap-1 ${
-                                                        etaBadge.isOverdue
+                                                        timerBadge.state === 'owner_escalated'
                                                             ? (isDark ? 'bg-rose-950/75 border-rose-600/50 text-rose-300' : 'bg-rose-50 border-rose-300 text-rose-700')
-                                                            : etaBadge.isOnTime
-                                                            ? (isDark ? 'bg-emerald-950/75 border-emerald-600/50 text-emerald-300' : 'bg-emerald-50 border-emerald-300 text-emerald-700')
-                                                            : (isDark ? 'bg-sky-950/75 border-sky-600/50 text-sky-300' : 'bg-sky-50 border-sky-200 text-sky-700')
+                                                            : timerBadge.state === 'group_escalated'
+                                                            ? (isDark ? 'bg-amber-950/75 border-amber-600/50 text-amber-300' : 'bg-amber-50 border-amber-300 text-amber-800')
+                                                            : (isDark ? 'bg-slate-800 border-slate-600 text-slate-300' : 'bg-slate-100 border-slate-300 text-slate-700')
                                                     }`}>
                                                         <CalendarClock className="w-2.5 h-2.5 shrink-0" />
-                                                        <span>{etaBadge.formattedTarget}</span>
+                                                        <span>{timerBadge.primaryLabel}</span>
                                                     </span>
                                                 );
                                             })()}
