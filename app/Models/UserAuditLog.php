@@ -66,7 +66,7 @@ class UserAuditLog extends Model
         ]);
 
         if ($syncSheet) {
-            dispatch(function () use ($log) {
+            app()->terminating(static function () use ($log) {
                 try {
                     app(\App\Services\AuditSheetService::class)->appendLog($log);
                 } catch (\Throwable $e) {
@@ -74,7 +74,7 @@ class UserAuditLog extends Model
                         "UserAuditLog: failed syncing audit log #{$log->id} to Google Sheet: " . $e->getMessage()
                     );
                 }
-            })->afterResponse();
+            });
         }
 
         return $log;

@@ -294,7 +294,7 @@ class UserController extends Controller
 
         // Background sync to WhatsApp Bot, Google Spreadsheet master, and credential dispatch
         $rawPassword = $validated['password'] ?? '';
-        dispatch(function () use ($user, $cleanPhone, $rawPassword) {
+        app()->terminating(function () use ($user, $cleanPhone, $rawPassword) {
             if (!empty($cleanPhone)) {
                 $this->syncStaffWithBot();
             }
@@ -312,7 +312,7 @@ class UserController extends Controller
                     \Illuminate\Support\Facades\Log::warning("UserController@store: Credential dispatch for user #{$user->id} failed: " . $credEx->getMessage());
                 }
             }
-        })->afterResponse();
+        });
 
         return response()->json([
             'success' => true,
@@ -502,7 +502,7 @@ class UserController extends Controller
         );
 
         // Background sync to WhatsApp Bot, Google Spreadsheet master, and notifications (non-blocking UI)
-        dispatch(function () use ($user, $passwordChanged, $rawPassword, $oldDepartment, $newDepartment) {
+        app()->terminating(function () use ($user, $passwordChanged, $rawPassword, $oldDepartment, $newDepartment) {
             if ($passwordChanged && !empty($rawPassword)) {
                 try {
                     $this->dispatchUserCredentials($user, $rawPassword, false);
@@ -526,7 +526,7 @@ class UserController extends Controller
             } catch (\Throwable $sheetEx) {
                 \Illuminate\Support\Facades\Log::warning("UserController@update: Auto-sync user #{$user->id} to Google Sheet failed: " . $sheetEx->getMessage());
             }
-        })->afterResponse();
+        });
 
         return response()->json([
             'success' => true,

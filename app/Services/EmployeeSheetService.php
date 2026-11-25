@@ -371,9 +371,9 @@ class EmployeeSheetService
                 continue;
             }
 
-            // Phone normalization
+            // Phone normalization (treat placeholder "-" as empty)
             $normalizedPhone = self::normalizePhoneNumber($rawPhone);
-            if ($rawPhone !== '' && !$normalizedPhone) {
+            if ($rawPhone !== '' && $rawPhone !== '-' && !$normalizedPhone) {
                 $errMsg = "Baris {$rowNumber} ({$rawName}): Nomor WhatsApp tidak valid.";
                 $errors[] = $errMsg;
                 $updatesToSheet[] = [
@@ -675,9 +675,9 @@ class EmployeeSheetService
             }
         }
 
-        // Dispatch Audit Sheet batch append & WhatsApp bot roster refresh in background (non-blocking)
+        // Run Audit Sheet batch append & WhatsApp bot roster refresh on app termination (non-blocking, no closure serialization of CurlHandle)
         $hasRosterChanges = ($created > 0 || $updated > 0);
-        dispatch(function () use ($pendingAuditLogs, $hasRosterChanges) {
+        app()->terminating(static function () use ($pendingAuditLogs, $hasRosterChanges) {
             if (!empty($pendingAuditLogs)) {
                 try {
                     app(AuditSheetService::class)->appendLogsBatch($pendingAuditLogs);
@@ -686,19 +686,27 @@ class EmployeeSheetService
                 }
             }
             if ($hasRosterChanges) {
-                $this->syncStaffWithBot();
+                self::syncStaffWithBot();
             }
-        })->afterResponse();
+        });
+
+        if ($created === 0 && $updated === 0 && $hashedCount === 0 && $skipped === 0 && count($errors) > 0) {
+            $summaryMessage = 'Sinkronisasi gagal: ' . count($errors) . ' baris bermasalah. Contoh: ' . $errors[0];
+        } elseif ($created === 0 && $updated === 0 && $hashedCount === 0 && count($errors) === 0) {
+            $summaryMessage = "Sinkronisasi selesai: seluruh {$skipped} data karyawan sudah sesuai (tidak ada perubahan).";
+        } else {
+            $summaryMessage = "Sinkronisasi selesai: {$created} akun baru dibuat, {$updated} diperbarui, {$hashedCount} password di-hash & diamankan" . ($skipped > 0 ? " ({$skipped} tidak berubah)." : ".");
+        }
 
         return [
-            'success'          => count($errors) === 0 || ($created > 0 || $updated > 0),
+            'success'          => count($errors) === 0 || ($created > 0 || $updated > 0 || $skipped > 0),
             'created'          => $created,
             'updated'          => $updated,
             'hashed_passwords' => $hashedCount,
             'skipped'          => $skipped,
             'errors'           => $errors,
             'spreadsheet_url'  => $this->getSpreadsheetUrl(),
-            'message'          => "Sinkronisasi selesai: {$created} akun baru dibuat, {$updated} diperbarui, {$hashedCount} password di-hash & diamankan.",
+            'message'          => $summaryMessage,
         ];
     }
 
@@ -867,7 +875,7 @@ class EmployeeSheetService
     /**
      * Trigger real-time staff roster reload in WhatsApp Bot V2.
      */
-    private function syncStaffWithBot(): void
+    public static function syncStaffWithBot(): void
     {
         try {
             $port = (int) config('services.bot.port', 3000);
