@@ -18,8 +18,6 @@ export function AuditTrailTab() {
     const [loading, setLoading] = useState(false);
     const [expandedId, setExpandedId] = useState(null);
     const [spreadsheetUrl, setSpreadsheetUrl] = useState('https://docs.google.com/spreadsheets/d/11FJllelJdd37tR9dUnCawgU1iycm6bQOLMgHM2t-z84/edit?usp=sharing');
-    const [syncingSheet, setSyncingSheet] = useState(false);
-    const [syncFeedback, setSyncFeedback] = useState(null);
 
     // Filters
     const [searchQuery, setSearchQuery] = useState('');
@@ -42,34 +40,6 @@ export function AuditTrailTab() {
             console.error('Failed to fetch audit logs:', e);
         } finally {
             setLoading(false);
-        }
-    };
-
-    const handleSyncSheet = async () => {
-        setSyncingSheet(true);
-        setSyncFeedback(null);
-        try {
-            const res = await axios.post('/api/user-audit-logs/sync-sheet');
-            if (res.data?.success) {
-                setSyncFeedback({ 
-                    success: true, 
-                    message: res.data.message || 'Berhasil menyinkronkan seluruh riwayat ke Google Spreadsheet.' 
-                });
-                if (res.data.spreadsheet_url) {
-                    setSpreadsheetUrl(res.data.spreadsheet_url);
-                }
-                fetchLogs();
-            } else {
-                setSyncFeedback({ success: false, message: res.data?.message || 'Gagal menyinkronkan data' });
-            }
-        } catch (e) {
-            setSyncFeedback({ 
-                success: false, 
-                message: e.response?.data?.message || 'Terjadi kesalahan sistem saat sinkronisasi' 
-            });
-        } finally {
-            setSyncingSheet(false);
-            setTimeout(() => setSyncFeedback(null), 6000);
         }
     };
 
@@ -510,21 +480,6 @@ export function AuditTrailTab() {
                     </div>
 
                     <div className="flex items-center gap-2.5 w-full lg:w-auto justify-end flex-wrap">
-                        <button
-                            type="button"
-                            onClick={handleSyncSheet}
-                            disabled={syncingSheet}
-                            className={`flex-1 lg:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer shadow-xs disabled:opacity-50 ${
-                                isDark
-                                    ? 'bg-slate-900 hover:bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
-                                    : 'bg-white hover:bg-emerald-50 border-emerald-300 text-emerald-700'
-                            }`}
-                            title="Sinkronkan seluruh basis data audit log ke spreadsheet"
-                        >
-                            <RefreshCw className={`h-4 w-4 ${syncingSheet ? 'animate-spin' : ''}`} />
-                            <span>{syncingSheet ? 'Menyinkronkan...' : 'Sinkronkan Sheet Sekarang'}</span>
-                        </button>
-
                         <a
                             href={spreadsheetUrl}
                             target="_blank"
@@ -537,18 +492,6 @@ export function AuditTrailTab() {
                         </a>
                     </div>
                 </div>
-
-                {/* Feedback Toast */}
-                {syncFeedback && (
-                    <div className={`mt-3.5 p-3 rounded-xl border text-xs font-bold flex items-center gap-2.5 animate-in fade-in duration-200 ${
-                        syncFeedback.success 
-                            ? isDark ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-200' : 'bg-emerald-100 border-emerald-300 text-emerald-900'
-                            : isDark ? 'bg-rose-500/20 border-rose-500/40 text-rose-200' : 'bg-rose-100 border-rose-300 text-rose-900'
-                    }`}>
-                        {syncFeedback.success ? <CheckCircle2 className={`h-4 w-4 shrink-0 ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`} /> : <AlertCircle className={`h-4 w-4 shrink-0 ${isDark ? 'text-rose-400' : 'text-rose-700'}`} />}
-                        <span>{syncFeedback.message}</span>
-                    </div>
-                )}
             </div>
 
             {/* 2. Mini Audit Dashboard Metrik */}
