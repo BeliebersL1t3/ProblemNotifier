@@ -762,9 +762,33 @@ export default function LeanIndex({
     const [staffReporterPhone, setStaffReporterPhone] = useState('');
     const [staffSearchQuery, setStaffSearchQuery] = useState('');
     const [showStaffDropdown, setShowStaffDropdown] = useState(false);
+    const staffDropdownRef = useRef(null);
     const [assignedWorkers, setAssignedWorkers] = useState([]);
     const [customWorkerInput, setCustomWorkerInput] = useState('');
     const [formEta, setFormEta] = useState('');
+
+    // Dismiss staff autocomplete dropdown when clicking/tapping outside or pressing Escape
+    useEffect(() => {
+        if (!showStaffDropdown) return;
+        const handleOutsidePointer = (e) => {
+            if (staffDropdownRef.current && !staffDropdownRef.current.contains(e.target)) {
+                setShowStaffDropdown(false);
+            }
+        };
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                setShowStaffDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleOutsidePointer);
+        document.addEventListener('touchstart', handleOutsidePointer);
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('mousedown', handleOutsidePointer);
+            document.removeEventListener('touchstart', handleOutsidePointer);
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [showStaffDropdown]);
 
     // Auto-select recording supervisor when Create Report modal opens in default In Progress mode
     useEffect(() => {
@@ -3598,7 +3622,7 @@ export default function LeanIndex({
                             )}
 
                             {/* 1. STAF PELAPOR (YANG DATANG BERDISKUSI) DENGAN AUTOCOMPLETE */}
-                            <div className="relative">
+                            <div>
                                 <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
                                     <span className="flex items-center gap-1">
                                         <User className="w-3.5 h-3.5 text-indigo-400" />
@@ -3608,7 +3632,7 @@ export default function LeanIndex({
                                         {isEn ? 'Search / type staff name' : 'Cari / ketik nama staf'}
                                     </span>
                                 </label>
-                                <div className="relative">
+                                <div ref={staffDropdownRef} className="relative">
                                     <input
                                         type="text"
                                         value={staffSearchQuery}
@@ -3618,6 +3642,11 @@ export default function LeanIndex({
                                             setShowStaffDropdown(true);
                                         }}
                                         onFocus={() => setShowStaffDropdown(true)}
+                                        onBlur={(e) => {
+                                            if (!staffDropdownRef.current?.contains(e.relatedTarget)) {
+                                                setShowStaffDropdown(false);
+                                            }
+                                        }}
                                         placeholder={isEn ? 'Type staff name (e.g., Budi / Siti / Hendra)...' : 'Ketik nama staf (contoh: Budi / Siti / Hendra)...'}
                                         className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                                         required
@@ -3625,6 +3654,7 @@ export default function LeanIndex({
                                     {staffSearchQuery && (
                                         <button
                                             type="button"
+                                            onMouseDown={(e) => e.preventDefault()}
                                             onClick={() => {
                                                 setStaffSearchQuery('');
                                                 setStaffReporterName('');
@@ -3636,34 +3666,35 @@ export default function LeanIndex({
                                             <X className="w-3.5 h-3.5" />
                                         </button>
                                     )}
-                                </div>
 
-                                {/* Autocomplete dropdown */}
-                                {showStaffDropdown && filteredStaff.length > 0 && (
-                                    <div className="absolute left-0 right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-30 max-h-48 overflow-y-auto divide-y divide-slate-700/60">
-                                        {filteredStaff.map((staff, idx) => (
-                                            <button
-                                                type="button"
-                                                key={idx}
-                                                onClick={() => handleSelectStaff(staff)}
-                                                className="w-full text-left px-3 py-2 text-xs hover:bg-slate-700 flex items-center justify-between transition-colors"
-                                            >
-                                                <div>
-                                                    <p className="font-semibold text-white">{staff.name}</p>
-                                                    <p className="text-[10px] text-slate-400">
-                                                        {staff.department ? `${formatDeptDisplay(staff.department)} ` : ''}
-                                                        {staff.subdivision ? `(${staff.subdivision})` : ''}
-                                                    </p>
-                                                </div>
-                                                {staff.phone && (
-                                                    <span className="text-[10px] text-emerald-400 font-mono">
-                                                        {staff.phone}
-                                                    </span>
-                                                )}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
+                                    {/* Autocomplete dropdown (anchored directly below staff name input) */}
+                                    {showStaffDropdown && filteredStaff.length > 0 && (
+                                        <div className="absolute left-0 right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-30 max-h-48 overflow-y-auto divide-y divide-slate-700/60">
+                                            {filteredStaff.map((staff, idx) => (
+                                                <button
+                                                    type="button"
+                                                    key={idx}
+                                                    onMouseDown={(e) => e.preventDefault()}
+                                                    onClick={() => handleSelectStaff(staff)}
+                                                    className="w-full text-left px-3 py-2 text-xs hover:bg-slate-700 flex items-center justify-between transition-colors"
+                                                >
+                                                    <div>
+                                                        <p className="font-semibold text-white">{staff.name}</p>
+                                                        <p className="text-[10px] text-slate-400">
+                                                            {staff.department ? `${formatDeptDisplay(staff.department)} ` : ''}
+                                                            {staff.subdivision ? `(${staff.subdivision})` : ''}
+                                                        </p>
+                                                    </div>
+                                                    {staff.phone && (
+                                                        <span className="text-[10px] text-emerald-400 font-mono">
+                                                            {staff.phone}
+                                                        </span>
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
 
                                 {/* WhatsApp Phone input */}
                                 <div className="mt-2">
