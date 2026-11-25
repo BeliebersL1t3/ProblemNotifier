@@ -145,7 +145,7 @@ const CustomParetoTooltip = ({ active, payload }) => {
     );
 };
 
-// Format duration in minutes into concise readable string (e.g. "45 mnt", "3j 20m", "2h 5j")
+// Format duration in minutes into clear readable string (e.g. "45 mnt", "3 jam 20 mnt", "27 hari 19 jam")
 const formatDurationCompact = (minutes, isEn = false) => {
     if (minutes === null || minutes === undefined || Number.isNaN(minutes) || minutes < 0) {
         return '-';
@@ -158,12 +158,12 @@ const formatDurationCompact = (minutes, isEn = false) => {
     const remMins = totalMins % 60;
     if (hours < 24) {
         if (remMins === 0) return isEn ? `${hours}h` : `${hours} jam`;
-        return isEn ? `${hours}h ${remMins}m` : `${hours}j ${remMins}m`;
+        return isEn ? `${hours}h ${remMins}m` : `${hours} jam ${remMins} mnt`;
     }
     const days = Math.floor(hours / 24);
     const remHours = hours % 24;
     if (remHours === 0) return isEn ? `${days}d` : `${days} hari`;
-    return isEn ? `${days}d ${remHours}h` : `${days}h ${remHours}j`;
+    return isEn ? `${days}d ${remHours}h` : `${days} hari ${remHours} jam`;
 };
 
 // Custom Tooltip for Department Workload
@@ -612,6 +612,7 @@ export function LeanAnalyticsView({
     const [perfMode, setPerfMode] = useState('mttr'); // 'mttr' | 'top_resolver' | 'oldest_active'
     const [chart4Mode, setChart4Mode] = useState('mttr_dept'); // 'mttr_dept' | 'top_workers'
     const [selectedPerfModal, setSelectedPerfModal] = useState(null);
+    const [perfModalAgeFilter, setPerfModalAgeFilter] = useState('all'); // 'all' | 'overdue_eta' | 'over_7d' | 'over_3d'
     const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
     const [isExportPdfModalOpen, setIsExportPdfModalOpen] = useState(false);
     const [nowMs, setNowMs] = useState(() => Date.now());
@@ -1123,7 +1124,11 @@ export function LeanAnalyticsView({
                 // Active (unresolved) issues
                 if (!Number.isNaN(createdMs)) {
                     const ageMinutes = Math.max(0, (nowMs - createdMs) / 60000);
-                    oldestActiveList.push({ issue, ageMinutes });
+                    const timerBadge = getEtaBadgeInfo(issue, nowMs, isEn);
+                    const isOverdueEta = Boolean(
+                        timerBadge && (timerBadge.state === 'owner_escalated' || timerBadge.state === 'group_escalated')
+                    );
+                    oldestActiveList.push({ issue, ageMinutes, isOverdueEta });
                 }
 
                 // Count pending issues per dept for MTTR tooltip context
@@ -1207,6 +1212,9 @@ export function LeanAnalyticsView({
         // Sort oldest active issues descending (longest waiting first)
         oldestActiveList.sort((a, b) => b.ageMinutes - a.ageMinutes);
         const activeOver24hCount = oldestActiveList.filter((item) => item.ageMinutes >= 24 * 60).length;
+        const activeOver3dCount = oldestActiveList.filter((item) => item.ageMinutes >= 3 * 24 * 60).length;
+        const activeOver7dCount = oldestActiveList.filter((item) => item.ageMinutes >= 7 * 24 * 60).length;
+        const activeOverdueEtaCount = oldestActiveList.filter((item) => item.isOverdueEta).length;
 
         return {
             resolvedWithDuration,
@@ -1218,6 +1226,9 @@ export function LeanAnalyticsView({
             resolverList,
             oldestActiveList,
             activeOver24hCount,
+            activeOver3dCount,
+            activeOver7dCount,
+            activeOverdueEtaCount,
         };
     }, [filteredIssues, nowMs, isEn]);
 
@@ -1901,14 +1912,18 @@ export function LeanAnalyticsView({
                                 }),
                             });
                         } else if (perfMode === 'oldest_active' && performanceMetrics.oldestActiveList.length > 0) {
+                            setPerfModalAgeFilter('all');
                             setSelectedPerfModal({
                                 title: isEn ? 'Oldest Unresolved Issues' : 'Daftar Isu Aktif Terlama',
                                 subtitle: isEn
-                                    ? `${performanceMetrics.oldestActiveList.length} active tickets (${performanceMetrics.activeOver24hCount} waiting > 24h)`
-                                    : `${performanceMetrics.oldestActiveList.length} tiket belum selesai (${performanceMetrics.activeOver24hCount} menunggu > 24 jam)`,
+                                    ? `${performanceMetrics.oldestActiveList.length} active tickets • ${performanceMetrics.activeOverdueEtaCount} past ETA • ${performanceMetrics.activeOver7dCount} waiting > 7 days`
+                                    : `${performanceMetrics.oldestActiveList.length} tiket aktif • ${performanceMetrics.activeOverdueEtaCount} lewat ETA • ${performanceMetrics.activeOver7dCount} tunggu > 7 hari`,
                                 accent: 'rose',
+                                enableAgeFilters: true,
                                 items: performanceMetrics.oldestActiveList.map((o) => ({
                                     issue: o.issue,
+                                    ageMinutes: o.ageMinutes,
+                                    isOverdueEta: o.isOverdueEta,
                                     durationLabel: `${isEn ? 'Waiting' : 'Menunggu'} ${formatDurationCompact(o.ageMinutes, isEn)}`,
                                 })),
                             });
@@ -1956,17 +1971,38 @@ export function LeanAnalyticsView({
                             ? `#${oldest.issue.issue_code || oldest.issue.id} ${oldest.issue.title}`
                             : (isEn ? 'All Tickets Resolved!' : 'Semua Tiket Tuntas!');
                         bigValue = oldest ? formatDurationCompact(oldest.ageMinutes, isEn) : (isEn ? '0 Active' : '0 Aktif');
-                        badgeText = performanceMetrics.activeOver24hCount > 0
-                            ? `${performanceMetrics.activeOver24hCount} > 24${isEn ? 'h' : 'j'}`
-                            : (isEn ? 'All < 24h' : 'Semua < 24j');
-                        badgeStyle = performanceMetrics.activeOver24hCount > 0
-                            ? (isDark ? 'bg-rose-950/80 border-rose-800/60 text-rose-300' : 'bg-rose-100 border-rose-300 text-rose-800')
-                            : (isDark ? 'bg-emerald-950/80 border-emerald-800/60 text-emerald-300' : 'bg-emerald-100 border-emerald-300 text-emerald-800');
-                        subInfo = oldest
-                            ? (isEn
-                                ? `${performanceMetrics.oldestActiveList.length} unresolved tickets waiting (Click details)`
-                                : `${performanceMetrics.oldestActiveList.length} tiket belum selesai menunggu (Klik rincian)`)
-                            : (isEn ? 'No active backlog remaining' : 'Tidak ada antrean tiket aktif');
+
+                        if (oldest) {
+                            const oldestStatus = getStatusLabel(oldest.issue.status);
+                            const oldestDeptRaw = Array.isArray(oldest.issue.target_departments) && oldest.issue.target_departments.length > 0
+                                ? oldest.issue.target_departments[0]
+                                : (oldest.issue.target_departments || 'Umum');
+                            const oldestDept = formatDeptDisplay(oldestDeptRaw);
+                            badgeText = `${oldestStatus} · ${oldestDept}`;
+                            badgeStyle = oldest.issue.status === 'pending'
+                                ? (isDark ? 'bg-amber-950/80 border-amber-700/60 text-amber-300' : 'bg-amber-100 border-amber-300 text-amber-800')
+                                : oldest.issue.status === 'in_progress'
+                                ? (isDark ? 'bg-sky-950/80 border-sky-700/60 text-sky-300' : 'bg-sky-100 border-sky-300 text-sky-800')
+                                : (isDark ? 'bg-rose-950/80 border-rose-800/60 text-rose-300' : 'bg-rose-100 border-rose-300 text-rose-800');
+
+                            const parts = [];
+                            if (performanceMetrics.activeOverdueEtaCount > 0) {
+                                parts.push(isEn ? `${performanceMetrics.activeOverdueEtaCount} past ETA` : `${performanceMetrics.activeOverdueEtaCount} lewat ETA`);
+                            }
+                            if (performanceMetrics.activeOver7dCount > 0) {
+                                parts.push(isEn ? `${performanceMetrics.activeOver7dCount} > 7d` : `${performanceMetrics.activeOver7dCount} tunggu > 7 hari`);
+                            } else if (performanceMetrics.activeOver3dCount > 0) {
+                                parts.push(isEn ? `${performanceMetrics.activeOver3dCount} > 3d` : `${performanceMetrics.activeOver3dCount} tunggu > 3 hari`);
+                            }
+                            if (parts.length === 0) {
+                                parts.push(isEn ? `${performanceMetrics.oldestActiveList.length} active tickets` : `${performanceMetrics.oldestActiveList.length} tiket aktif`);
+                            }
+                            subInfo = `${parts.join(' • ')} (${isEn ? 'Click details' : 'Klik rincian'})`;
+                        } else {
+                            badgeText = isEn ? 'Clear' : 'Tuntas';
+                            badgeStyle = isDark ? 'bg-emerald-950/80 border-emerald-800/60 text-emerald-300' : 'bg-emerald-100 border-emerald-300 text-emerald-800';
+                            subInfo = isEn ? 'No active backlog remaining' : 'Tidak ada antrean tiket aktif';
+                        }
                     }
 
                     return (
@@ -2781,9 +2817,88 @@ export function LeanAnalyticsView({
                             </button>
                         </div>
 
+                        {/* Age / ETA Filter Pills (for Oldest Active Issues modal) */}
+                        {selectedPerfModal.enableAgeFilters && (() => {
+                            const allItems = selectedPerfModal.items || [];
+                            const filterOptions = [
+                                {
+                                    key: 'all',
+                                    label: isEn ? 'All Active' : 'Semua Aktif',
+                                    count: allItems.length,
+                                },
+                                {
+                                    key: 'overdue_eta',
+                                    label: isEn ? 'Past ETA' : 'Lewat ETA',
+                                    count: allItems.filter((i) => i.isOverdueEta).length,
+                                },
+                                {
+                                    key: 'over_7d',
+                                    label: isEn ? '> 7 Days' : '> 7 Hari',
+                                    count: allItems.filter((i) => (i.ageMinutes || 0) >= 7 * 24 * 60).length,
+                                },
+                                {
+                                    key: 'over_3d',
+                                    label: isEn ? '> 3 Days' : '> 3 Hari',
+                                    count: allItems.filter((i) => (i.ageMinutes || 0) >= 3 * 24 * 60).length,
+                                },
+                            ];
+                            return (
+                                <div className={`px-4 py-2.5 border-b flex items-center gap-1.5 flex-wrap ${
+                                    isDark ? 'border-slate-800 bg-slate-900/50' : 'border-slate-200/80 bg-slate-50/80'
+                                }`}>
+                                    {filterOptions.map((opt) => {
+                                        const isActive = perfModalAgeFilter === opt.key;
+                                        return (
+                                            <button
+                                                key={opt.key}
+                                                type="button"
+                                                onClick={() => setPerfModalAgeFilter(opt.key)}
+                                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                                                    isActive
+                                                        ? 'bg-rose-600 border-rose-600 text-white keep-white shadow-xs'
+                                                        : isDark
+                                                        ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:text-white hover:border-slate-500'
+                                                        : 'bg-white border-slate-200 text-slate-700 hover:text-slate-900 hover:border-slate-300'
+                                                }`}
+                                            >
+                                                <span>{opt.label}</span>
+                                                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                                                    isActive
+                                                        ? 'bg-white/20 text-white'
+                                                        : isDark ? 'bg-slate-900 text-slate-400' : 'bg-slate-100 text-slate-600'
+                                                }`}>
+                                                    {opt.count}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })()}
+
                         {/* Modal Body */}
                         <div className="p-4 overflow-y-auto space-y-3 flex-1">
-                            {selectedPerfModal.items.map(({ issue: iss, durationLabel }) => (
+                            {(() => {
+                                const visibleItems = selectedPerfModal.enableAgeFilters
+                                    ? (selectedPerfModal.items || []).filter((item) => {
+                                          if (perfModalAgeFilter === 'overdue_eta') return Boolean(item.isOverdueEta);
+                                          if (perfModalAgeFilter === 'over_7d') return (item.ageMinutes || 0) >= 7 * 24 * 60;
+                                          if (perfModalAgeFilter === 'over_3d') return (item.ageMinutes || 0) >= 3 * 24 * 60;
+                                          return true;
+                                      })
+                                    : (selectedPerfModal.items || []);
+
+                                if (visibleItems.length === 0) {
+                                    return (
+                                        <div className="py-10 text-center">
+                                            <p className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                {isEn ? 'No tickets match this filter.' : 'Tidak ada tiket pada kategori filter ini.'}
+                                            </p>
+                                        </div>
+                                    );
+                                }
+
+                                return visibleItems.map(({ issue: iss, durationLabel }) => (
                                 <div
                                     key={iss.id}
                                     className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${
@@ -2869,7 +2984,8 @@ export function LeanAnalyticsView({
                                         </button>
                                     )}
                                 </div>
-                            ))}
+                                ));
+                            })()}
                         </div>
                     </div>
                 </div>
