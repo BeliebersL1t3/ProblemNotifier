@@ -719,6 +719,11 @@ class EmployeeSheetSyncTest extends TestCase
         $mockSpreadsheets->method('get')->willReturn($meta);
 
         $exportedRows = [];
+        $capturedBatchRequests = [];
+        $mockSpreadsheets->method('batchUpdate')->willReturnCallback(function ($sheetId, $body) use (&$capturedBatchRequests) {
+            $capturedBatchRequests = $body->getRequests() ?: [];
+            return true;
+        });
         $mockValues->method('clear')->willReturn(true);
         $mockValues->method('update')->willReturnCallback(function ($sheetId, $range, $body) use (&$exportedRows) {
             $exportedRows = $body->getValues();
@@ -735,6 +740,27 @@ class EmployeeSheetSyncTest extends TestCase
         // 1. Export Web -> Sheet must write 'staff' (NOT 'department') for department users, and 'admin' for admins
         $exportRes = $service->exportAllEmployeesToSheet();
         $this->assertTrue($exportRes['success']);
+
+        // Verify Column F dropdown validation ('staff' / 'admin') was configured via batchUpdate
+        $validationReq = null;
+        foreach ($capturedBatchRequests as $req) {
+            if ($req->getSetDataValidation() !== null) {
+                $validationReq = $req->getSetDataValidation();
+                break;
+            }
+        }
+        $this->assertNotNull($validationReq);
+        $this->assertEquals(1, $validationReq->getRange()->getStartRowIndex());
+        $this->assertEquals(5, $validationReq->getRange()->getStartColumnIndex());
+        $this->assertEquals(6, $validationReq->getRange()->getEndColumnIndex());
+        $this->assertEquals('ONE_OF_LIST', $validationReq->getRule()->getCondition()->getType());
+        $this->assertTrue($validationReq->getRule()->getStrict());
+        $this->assertTrue($validationReq->getRule()->getShowCustomUi());
+        $allowedRoleValues = array_map(
+            fn ($v) => $v->getUserEnteredValue(),
+            $validationReq->getRule()->getCondition()->getValues()
+        );
+        $this->assertEquals(['staff', 'admin'], $allowedRoleValues);
 
         $rolesByEmail = [];
         foreach ($exportedRows as $r) {

@@ -150,7 +150,7 @@ class EmployeeSheetService
             throw new \RuntimeException('Spreadsheet ID belum dikonfigurasi. Hubungkan spreadsheet terlebih dahulu.');
         }
 
-        $cacheKey = "employee_sheet_header_ready:{$this->spreadsheetId}";
+        $cacheKey = "employee_sheet_header_ready_v2:{$this->spreadsheetId}";
         if (!$forceRefresh) {
             $cachedTitle = Cache::get($cacheKey);
             if (is_string($cachedTitle) && $cachedTitle !== '') {
@@ -253,12 +253,36 @@ class EmployeeSheetService
             ],
         ]);
 
+        // Enforce strict dropdown validation ('staff' / 'admin') on Column F (Role) from Row 2 onward
+        $roleValidationReq = new Request([
+            'setDataValidation' => [
+                'range' => [
+                    'sheetId'          => $targetGid,
+                    'startRowIndex'    => 1, // Row 2 onward
+                    'startColumnIndex' => 5, // Column F (0-indexed)
+                    'endColumnIndex'   => 6,
+                ],
+                'rule' => [
+                    'condition' => [
+                        'type'   => 'ONE_OF_LIST',
+                        'values' => [
+                            ['userEnteredValue' => 'staff'],
+                            ['userEnteredValue' => 'admin'],
+                        ],
+                    ],
+                    'inputMessage' => 'Pilih peran akun: staff atau admin',
+                    'strict'       => true,
+                    'showCustomUi' => true,
+                ],
+            ],
+        ]);
+
         try {
             $service->spreadsheets->batchUpdate($this->spreadsheetId, new BatchUpdateSpreadsheetRequest([
-                'requests' => [$formatReq],
+                'requests' => [$formatReq, $roleValidationReq],
             ]));
         } catch (\Throwable $e) {
-            Log::warning('EmployeeSheetService header format warning: ' . $e->getMessage());
+            Log::warning('EmployeeSheetService header format & role validation warning: ' . $e->getMessage());
         }
 
         Cache::put($cacheKey, $targetTitle, now()->addHours(24));
@@ -1203,7 +1227,7 @@ class EmployeeSheetService
      */
     public function exportAllEmployeesToSheet(): array
     {
-        $tabName = $this->ensureSheetAndHeaders();
+        $tabName = $this->ensureSheetAndHeaders(true);
         $service = $this->getSheetsService();
 
         $users = User::withTrashed()
