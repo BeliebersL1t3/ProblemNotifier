@@ -105,10 +105,15 @@ class UserController extends Controller
             });
         }
 
-        // Role filter
+        // Role filter (treat both 'department' and 'staff' as non-admin User Biasa / Staf)
         if ($role = $request->query('role')) {
             if ($role === 'hod') {
                 $query->where('is_hod', true);
+            } elseif (in_array($role, ['department', 'staff'], true)) {
+                $query->where(function ($q) {
+                    $q->where('role', '!=', 'admin')
+                      ->orWhereNull('role');
+                });
             } else {
                 $query->where('role', $role);
             }
@@ -168,14 +173,14 @@ class UserController extends Controller
                 $q->whereNull('approval_status')
                   ->orWhere('approval_status', '!=', 'rejected');
             })
-            ->selectRaw('
+            ->selectRaw("
                 COUNT(*) as total_users,
-                SUM(CASE WHEN role = "admin" THEN 1 ELSE 0 END) as total_admins,
-                SUM(CASE WHEN role = "department" THEN 1 ELSE 0 END) as total_departments,
+                SUM(CASE WHEN role = 'admin' THEN 1 ELSE 0 END) as total_admins,
+                SUM(CASE WHEN role != 'admin' OR role IS NULL THEN 1 ELSE 0 END) as total_departments,
                 SUM(CASE WHEN is_hod = 1 AND is_active = 1 THEN 1 ELSE 0 END) as total_supervisors,
                 SUM(CASE WHEN is_hod = 1 AND is_active = 1 THEN 1 ELSE 0 END) as total_hod,
-                SUM(CASE WHEN whatsapp_number IS NOT NULL AND whatsapp_number != "" THEN 1 ELSE 0 END) as total_whatsapp
-            ')
+                SUM(CASE WHEN whatsapp_number IS NOT NULL AND whatsapp_number != '' THEN 1 ELSE 0 END) as total_whatsapp
+            ")
             ->first();
 
         $stats = [

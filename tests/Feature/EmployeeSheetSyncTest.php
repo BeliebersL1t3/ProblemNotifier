@@ -810,5 +810,21 @@ class EmployeeSheetSyncTest extends TestCase
         $this->assertEquals(0, $preview['updated']);
         $this->assertEquals(1, $preview['skipped']);
         $this->assertEmpty($preview['changes']);
+
+        // 4. Verify UserController::index() counts BOTH 'department' and 'staff' roles under total_departments & ?role=department filter
+        User::factory()->create([
+            'name'       => 'Andi Staff Sheet',
+            'staff_name' => 'Andi Staff Sheet',
+            'email'      => 'andi.staff@telunasresorts.com',
+            'role'       => 'staff',
+            'department' => 'HK',
+            'is_active'  => true,
+        ]);
+
+        $indexRes = $this->actingAs($adminUser)->getJson('/api/users?role=department');
+        $indexRes->assertStatus(200);
+        $indexRes->assertJsonPath('stats.total_admins', 1);
+        $indexRes->assertJsonPath('stats.total_departments', 2); // Both 'department' and 'staff' counted!
+        $this->assertCount(2, $indexRes->json('data'));
     }
 }

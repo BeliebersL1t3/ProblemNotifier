@@ -47,7 +47,7 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                 setStaffName(user.staff_name || user.name || '');
                 setEmail(user.email || '');
                 setWhatsappNumber(user.whatsapp_number || '');
-                setRole(user.role || 'department');
+                setRole(user.role === 'admin' ? 'admin' : 'department');
                 setDepartment(user.department || '');
                 setSubdivision(user.subdivision || '');
                 setIsSupervisor(Boolean(user.is_supervisor || user.is_hod));

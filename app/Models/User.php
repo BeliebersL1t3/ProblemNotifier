@@ -142,7 +142,7 @@ class User extends Authenticatable
 
     public function isDepartmentUser(): bool
     {
-        return $this->role === 'department';
+        return $this->role !== 'admin';
     }
 
 
