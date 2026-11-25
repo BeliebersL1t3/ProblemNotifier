@@ -1272,18 +1272,31 @@ class UserController extends Controller
                 ], 422);
             }
 
-            $result = $service->syncEmployeesFromSheet(auth()->user());
+            $dryRun = $request->boolean('dry_run', false);
+            $expectedPreviewHash = $request->input('expected_preview_hash');
+            $expectedPreviewHash = is_string($expectedPreviewHash) && trim($expectedPreviewHash) !== ''
+                ? trim($expectedPreviewHash)
+                : null;
+
+            $result = $service->syncEmployeesFromSheet(auth()->user(), $dryRun, $expectedPreviewHash);
+
+            $statusCode = !empty($result['stale_preview']) ? 409 : 200;
 
             return response()->json([
                 'success'          => $result['success'],
+                'dry_run'          => $result['dry_run'] ?? $dryRun,
+                'stale_preview'    => $result['stale_preview'] ?? false,
+                'preview_hash'     => $result['preview_hash'] ?? null,
                 'created'          => $result['created'],
                 'updated'          => $result['updated'],
                 'hashed_passwords' => $result['hashed_passwords'],
                 'skipped'          => $result['skipped'],
                 'errors'           => $result['errors'],
+                'changes'          => $result['changes'] ?? [],
+                'security_alerts'  => $result['security_alerts'] ?? [],
                 'spreadsheet_url'  => $result['spreadsheet_url'],
                 'message'          => $result['message'],
-            ]);
+            ], $statusCode);
         } catch (\Throwable $e) {
             Log::error('UserController@syncEmployeeSheet failed: ' . $e->getMessage());
             return response()->json([

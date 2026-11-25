@@ -169,6 +169,103 @@ export function AuditTrailTab() {
         };
     }, [logs, totalCount]);
 
+    const renderInlineDiffSummary = (log) => {
+        if (!log?.changes) return null;
+
+        // Highlight newly created Admin accounts immediately
+        if (['USER_CREATED', 'USER_CREATED_VIA_SHEET_SYNC'].includes(log.action) && log.changes?.created_user) {
+            const createdRole = log.changes.created_user.role;
+            const createdDept = log.changes.created_user.department;
+            const isAdminNew = createdRole === 'admin';
+            return (
+                <div className="flex flex-wrap items-center gap-1 mt-1">
+                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+                        isAdminNew
+                            ? (isDark ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-rose-100 text-rose-700 border-rose-300')
+                            : (isDark ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : 'bg-emerald-50 text-emerald-700 border-emerald-200')
+                    }`}>
+                        {isAdminNew && <ShieldAlert className="h-3 w-3 shrink-0" />}
+                        <span>Role: {isAdminNew ? 'Administrator' : (createdRole || 'Staff')}</span>
+                    </span>
+                    {createdDept && (
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border ${
+                            isDark ? 'bg-slate-800/80 text-slate-300 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'
+                        }`}>
+                            Dept: {createdDept}
+                        </span>
+                    )}
+                </div>
+            );
+        }
+
+        const diffs = extractDifferences(log.changes);
+        if (!diffs || diffs.length === 0) return null;
+
+        // Prioritize security-sensitive diffs (role, password, is_active) so they are always visible first
+        const priority = (d) => {
+            if (d.key === 'role' && d.afterText === 'Administrator') return 0;
+            if (d.key === 'role') return 1;
+            if (d.type === 'password') return 2;
+            if (d.key === 'is_active') return 3;
+            return 4;
+        };
+        const sortedDiffs = [...diffs].sort((a, b) => priority(a) - priority(b));
+        const visible = sortedDiffs.slice(0, 3);
+        const remaining = sortedDiffs.length - visible.length;
+
+        return (
+            <div className="flex flex-wrap items-center gap-1 mt-1">
+                {visible.map((d, idx) => {
+                    const isAdminPromotion = d.key === 'role' && d.afterText === 'Administrator';
+                    const isRoleChange = d.key === 'role';
+                    const isPass = d.type === 'password';
+                    const isDeactivated = d.key === 'is_active' && d.afterText === 'Nonaktif';
+
+                    let pillClass = isDark
+                        ? 'bg-slate-800/80 text-slate-300 border-slate-700'
+                        : 'bg-slate-100 text-slate-700 border-slate-200';
+                    if (isAdminPromotion) {
+                        pillClass = isDark
+                            ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 font-bold'
+                            : 'bg-rose-100 text-rose-700 border-rose-300 font-bold';
+                    } else if (isRoleChange || isPass || isDeactivated) {
+                        pillClass = isDark
+                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-semibold'
+                            : 'bg-amber-100 text-amber-800 border-amber-300 font-semibold';
+                    }
+
+                    let text = '';
+                    if (d.type === 'password') {
+                        text = 'Password Diubah';
+                    } else if (d.type === 'permission') {
+                        text = `${d.label}: ${d.afterBool ? 'Aktif' : 'Nonaktif'}`;
+                    } else {
+                        text = `${d.label}: ${d.beforeText} → ${d.afterText}`;
+                    }
+
+                    return (
+                        <span
+                            key={`${d.key || idx}-${idx}`}
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border max-w-full truncate ${pillClass}`}
+                            title={text}
+                        >
+                            {isAdminPromotion && <ShieldAlert className="h-3 w-3 shrink-0" />}
+                            {isPass && <KeyRound className="h-3 w-3 shrink-0" />}
+                            <span className="truncate">{text}</span>
+                        </span>
+                    );
+                })}
+                {remaining > 0 && (
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                        isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-500 border-slate-200'
+                    }`}>
+                        +{remaining} lainnya
+                    </span>
+                )}
+            </div>
+        );
+    };
+
     const getActionBadge = (log) => {
         const action = log?.action;
         switch (action) {
@@ -597,7 +694,8 @@ export function AuditTrailTab() {
                                                     {getActionBadge(log)}
                                                 </td>
                                                 <td className={`py-3.5 px-4 font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                                    {log.target_user_name || '-'}
+                                                    <div>{log.target_user_name || '-'}</div>
+                                                    {renderInlineDiffSummary(log)}
                                                 </td>
                                                 <td className={`py-3.5 px-4 ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
                                                     <div className="flex items-center gap-1.5">
@@ -690,6 +788,7 @@ export function AuditTrailTab() {
                                                     <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                                         {log.target_user_name}
                                                     </div>
+                                                    {renderInlineDiffSummary(log)}
                                                     <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                                                         Oleh: <strong className={isDark ? 'text-emerald-300' : 'text-emerald-700'}>{log.admin_name}</strong>
                                                     </div>

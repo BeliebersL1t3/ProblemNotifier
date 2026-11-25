@@ -300,10 +300,32 @@ class EmployeeSheetService
     }
 
     /**
-     * Sync staff members from the Google Spreadsheet (Option B: Bcrypt hash written back).
+     * Format role code into human-readable Indonesian label.
      */
-    public function syncEmployeesFromSheet(?User $actingAdmin = null): array
+    private static function formatRoleLabel(?string $role): string
     {
+        $r = strtolower(trim((string) $role));
+        if ($r === 'admin') {
+            return 'Administrator';
+        }
+        if ($r === 'department') {
+            return 'Departemen';
+        }
+        return $r !== '' ? ucfirst($r) : 'Staff';
+    }
+
+    /**
+     * Sync staff members from the Google Spreadsheet (Option B: Bcrypt hash written back).
+     *
+     * Supports two-step Dry-Run Preview ($dryRun = true) and anti-tamper hash verification
+     * ($expectedPreviewHash) so admins can inspect every change—especially role escalations
+     * to Administrator—before writing to the database.
+     */
+    public function syncEmployeesFromSheet(
+        ?User $actingAdmin = null,
+        bool $dryRun = false,
+        ?string $expectedPreviewHash = null
+    ): array {
         $tabName = $this->ensureSheetAndHeaders();
         $service = $this->getSheetsService();
 
@@ -312,13 +334,17 @@ class EmployeeSheetService
         $response = $service->spreadsheets_values->get($this->spreadsheetId, $range);
         $rows = $response->getValues() ?: [];
 
-        $created = 0;
-        $updated = 0;
-        $hashedCount = 0;
+        $plannedCreated = 0;
+        $plannedUpdated = 0;
+        $plannedHashed = 0;
         $skipped = 0;
         $errors = [];
         $updatesToSheet = []; // Array of ['range' => '...', 'values' => [[...]]]
         $pendingAuditLogs = []; // Collected for a single non-blocking batch append to Audit Sheet
+        $changes = [];
+        $securityAlerts = [];
+        $plannedOps = [];
+        $hashEntries = [];
 
         // Preload all users in 1 DB query to eliminate N+1 per-row queries
         $allUsers = User::withTrashed()->get();
@@ -341,6 +367,9 @@ class EmployeeSheetService
 
         $nowStr = Carbon::now('Asia/Jakarta')->format('d/m/Y H:i');
 
+        // =====================================================================
+        // PHASE 1: PURE ANALYSIS (No DB writes, no Bcrypt cost, no Sheet writes)
+        // =====================================================================
         foreach ($rows as $index => $row) {
             $rowNumber = $index + 2; // 1-indexed, starting after header
 
@@ -414,104 +443,445 @@ class EmployeeSheetService
                 $existingUser = $usersByName[strtolower($rawName)] ?? null;
             }
 
-            // Password & Bcrypt Handling (Option B)
-            $newHashToWriteBack = null;
-            $passwordForDb = null;
+            // Password analysis (defer actual Hash::make until Phase 2 so dry-run stays instant)
+            $passwordAction = 'keep'; // 'keep' | 'use_existing_hash' | 'hash_plain' | 'generate_default'
+            $willHashPassword = false;
 
             if (self::isBcryptHash($rawPassword)) {
-                // Cell already holds a Bcrypt hash
                 if (!$existingUser) {
-                    $passwordForDb = $rawPassword;
+                    $passwordAction = 'use_existing_hash';
                 }
             } elseif ($rawPassword !== '') {
-                // User typed plain text password! Hash it and prepare to write back to spreadsheet
-                $passwordForDb = Hash::make($rawPassword);
-                $newHashToWriteBack = $passwordForDb;
-                $hashedCount++;
+                $passwordAction = 'hash_plain';
+                $willHashPassword = true;
             } else {
-                // Password empty in sheet
                 if (!$existingUser) {
-                    // New user with no password: assign a default secure password
-                    $defaultPass = 'Telunas#' . substr($normalizedPhone ?: (string) rand(1000, 9999), -4);
+                    $passwordAction = 'generate_default';
+                    $willHashPassword = true;
+                }
+            }
+
+            if ($existingUser) {
+                $before = [
+                    'name'            => $existingUser->name,
+                    'staff_name'      => $existingUser->staff_name,
+                    'email'           => $existingUser->email,
+                    'role'            => $existingUser->role,
+                    'department'      => $existingUser->department,
+                    'subdivision'     => $existingUser->subdivision,
+                    'whatsapp_number' => $existingUser->whatsapp_number,
+                    'is_active'       => (bool) $existingUser->is_active,
+                ];
+                $passwordChanged = ($passwordAction === 'hash_plain');
+
+                $targetSubdivision = $rawSubdivision !== '' ? $rawSubdivision : $existingUser->subdivision;
+                $targetPhone = $normalizedPhone ?: $existingUser->whatsapp_number;
+                $targetEmail = !empty($rawEmail) ? $rawEmail : $existingUser->email;
+                $targetActive = !$isInactive;
+                $trashChanged = ($isInactive && !$existingUser->trashed()) || (!$isInactive && $existingUser->trashed());
+
+                $phoneChanged = self::normalizePhoneNumber($before['whatsapp_number']) !== self::normalizePhoneNumber($targetPhone);
+                $emailChanged = strtolower((string) $before['email']) !== strtolower((string) $targetEmail);
+                $nameChanged = ($before['name'] !== $rawName || $before['staff_name'] !== $rawName);
+                $deptChanged = ($before['department'] !== $normalizedDept);
+                $subdivChanged = ((string) ($before['subdivision'] ?? '') !== (string) ($targetSubdivision ?? ''));
+                $roleChanged = ($before['role'] !== $role);
+                $activeChanged = ($before['is_active'] !== $targetActive || $trashChanged);
+
+                $hasDataChanges = $passwordChanged
+                    || $nameChanged
+                    || $deptChanged
+                    || $subdivChanged
+                    || $phoneChanged
+                    || $emailChanged
+                    || $roleChanged
+                    || $activeChanged;
+
+                // Smart Dirty Check: Skip DB save, audit log, and sheet write-back for unchanged rows!
+                if (!$hasDataChanges && !$willHashPassword) {
+                    if (!str_starts_with($rawSyncStatus, 'Tersinkron')) {
+                        $updatesToSheet[] = [
+                            'range'  => "{$tabName}!I{$rowNumber}",
+                            'values' => [["Tersinkron ({$nowStr})"]],
+                        ];
+                    }
+                    $skipped++;
+                    continue;
+                }
+
+                $diffs = [];
+                $sensitiveTags = [];
+
+                if ($roleChanged) {
+                    $isPromotedToAdmin = ($before['role'] !== 'admin' && $role === 'admin');
+                    $isDemotedFromAdmin = ($before['role'] === 'admin' && $role !== 'admin');
+                    $diffs[] = [
+                        'field'     => 'role',
+                        'label'     => 'Peran (Role)',
+                        'before'    => self::formatRoleLabel($before['role']),
+                        'after'     => self::formatRoleLabel($role),
+                        'sensitive' => true,
+                    ];
+                    if ($isPromotedToAdmin) {
+                        $sensitiveTags[] = 'PROMOTED_TO_ADMIN';
+                        $securityAlerts[] = [
+                            'severity' => 'critical',
+                            'tag'      => 'PROMOTED_TO_ADMIN',
+                            'row'      => $rowNumber,
+                            'name'     => $rawName,
+                            'email'    => $targetEmail,
+                            'message'  => "{$rawName} (Baris {$rowNumber}): Peran diubah dari " . self::formatRoleLabel($before['role']) . " menjadi Administrator.",
+                        ];
+                    } elseif ($isDemotedFromAdmin) {
+                        $sensitiveTags[] = 'DEMOTED_FROM_ADMIN';
+                        $securityAlerts[] = [
+                            'severity' => 'warning',
+                            'tag'      => 'DEMOTED_FROM_ADMIN',
+                            'row'      => $rowNumber,
+                            'name'     => $rawName,
+                            'email'    => $targetEmail,
+                            'message'  => "{$rawName} (Baris {$rowNumber}): Peran diturunkan dari Administrator menjadi " . self::formatRoleLabel($role) . ".",
+                        ];
+                    }
+                }
+
+                if ($passwordChanged) {
+                    $diffs[] = [
+                        'field'     => 'password',
+                        'label'     => 'Password',
+                        'before'    => '••••••••',
+                        'after'     => 'Password baru (di-hash Bcrypt)',
+                        'sensitive' => true,
+                    ];
+                    $sensitiveTags[] = 'PASSWORD_CHANGED';
+                    $securityAlerts[] = [
+                        'severity' => 'warning',
+                        'tag'      => 'PASSWORD_CHANGED',
+                        'row'      => $rowNumber,
+                        'name'     => $rawName,
+                        'email'    => $targetEmail,
+                        'message'  => "{$rawName} (Baris {$rowNumber}): Password akun akan diperbarui dari Spreadsheet.",
+                    ];
+                }
+
+                if ($activeChanged) {
+                    $wasActive = $before['is_active'] && !$existingUser->trashed();
+                    $diffs[] = [
+                        'field'     => 'is_active',
+                        'label'     => 'Status Akun',
+                        'before'    => $wasActive ? 'Aktif' : 'Nonaktif',
+                        'after'     => $targetActive ? 'Aktif' : 'Nonaktif (Diarsipkan)',
+                        'sensitive' => !$targetActive,
+                    ];
+                    if (!$targetActive) {
+                        $sensitiveTags[] = 'ACCOUNT_DEACTIVATED';
+                        $securityAlerts[] = [
+                            'severity' => 'warning',
+                            'tag'      => 'ACCOUNT_DEACTIVATED',
+                            'row'      => $rowNumber,
+                            'name'     => $rawName,
+                            'email'    => $targetEmail,
+                            'message'  => "{$rawName} (Baris {$rowNumber}): Akun akan dinonaktifkan / diarsipkan.",
+                        ];
+                    }
+                }
+
+                if ($nameChanged) {
+                    $diffs[] = [
+                        'field'     => 'name',
+                        'label'     => 'Nama',
+                        'before'    => $before['staff_name'] ?: $before['name'] ?: '(Kosong)',
+                        'after'     => $rawName,
+                        'sensitive' => false,
+                    ];
+                }
+                if ($deptChanged) {
+                    $diffs[] = [
+                        'field'     => 'department',
+                        'label'     => 'Departemen',
+                        'before'    => $before['department'] ?: '(Kosong)',
+                        'after'     => $normalizedDept,
+                        'sensitive' => false,
+                    ];
+                }
+                if ($subdivChanged) {
+                    $diffs[] = [
+                        'field'     => 'subdivision',
+                        'label'     => 'Subdivisi',
+                        'before'    => $before['subdivision'] ?: '(Kosong)',
+                        'after'     => $targetSubdivision ?: '(Kosong)',
+                        'sensitive' => false,
+                    ];
+                }
+                if ($phoneChanged) {
+                    $diffs[] = [
+                        'field'     => 'whatsapp_number',
+                        'label'     => 'WhatsApp',
+                        'before'    => $before['whatsapp_number'] ?: '(Kosong)',
+                        'after'     => $targetPhone ?: '(Kosong)',
+                        'sensitive' => false,
+                    ];
+                }
+                if ($emailChanged) {
+                    $diffs[] = [
+                        'field'     => 'email',
+                        'label'     => 'Email',
+                        'before'    => $before['email'] ?: '(Kosong)',
+                        'after'     => $targetEmail ?: '(Kosong)',
+                        'sensitive' => false,
+                    ];
+                }
+
+                $plannedUpdated++;
+                if ($willHashPassword) {
+                    $plannedHashed++;
+                }
+
+                $changes[] = [
+                    'row'            => $rowNumber,
+                    'action'         => 'updated',
+                    'user_id'        => $existingUser->id,
+                    'name'           => $rawName,
+                    'email'          => $targetEmail,
+                    'department'     => $normalizedDept,
+                    'role'           => $role,
+                    'sensitive'      => !empty($sensitiveTags),
+                    'sensitive_tags' => $sensitiveTags,
+                    'diffs'          => $diffs,
+                ];
+
+                $hashEntries[] = [
+                    'row'          => $rowNumber,
+                    'action'       => 'updated',
+                    'user_id'      => $existingUser->id,
+                    'name'         => $rawName,
+                    'email'        => strtolower((string) $targetEmail),
+                    'department'   => $normalizedDept,
+                    'subdivision'  => (string) ($targetSubdivision ?? ''),
+                    'phone'        => (string) ($targetPhone ?? ''),
+                    'role'         => $role,
+                    'active'       => $targetActive,
+                    'pass_fp'      => $passwordChanged ? hash('sha256', $rawPassword) : '',
+                ];
+
+                $plannedOps[] = [
+                    'action'            => 'updated',
+                    'row'               => $rowNumber,
+                    'existing_user'     => $existingUser,
+                    'before'            => $before,
+                    'raw_name'          => $rawName,
+                    'normalized_dept'   => $normalizedDept,
+                    'target_subdiv'     => $targetSubdivision,
+                    'target_phone'      => $targetPhone,
+                    'target_email'      => $targetEmail,
+                    'role'              => $role,
+                    'target_active'     => $targetActive,
+                    'is_inactive'       => $isInactive,
+                    'password_action'   => $passwordAction,
+                    'raw_password'      => $rawPassword,
+                    'normalized_phone'  => $normalizedPhone,
+                ];
+            } else {
+                // Planned new user creation
+                $sensitiveTags = [];
+                $diffs = [
+                    ['field' => 'role', 'label' => 'Peran (Role)', 'before' => null, 'after' => self::formatRoleLabel($role), 'sensitive' => $role === 'admin'],
+                    ['field' => 'department', 'label' => 'Departemen', 'before' => null, 'after' => $normalizedDept, 'sensitive' => false],
+                ];
+                if ($rawSubdivision !== '') {
+                    $diffs[] = ['field' => 'subdivision', 'label' => 'Subdivisi', 'before' => null, 'after' => $rawSubdivision, 'sensitive' => false];
+                }
+                if ($normalizedPhone) {
+                    $diffs[] = ['field' => 'whatsapp_number', 'label' => 'WhatsApp', 'before' => null, 'after' => $normalizedPhone, 'sensitive' => false];
+                }
+                if ($willHashPassword) {
+                    $diffs[] = [
+                        'field'     => 'password',
+                        'label'     => 'Password',
+                        'before'    => null,
+                        'after'     => $passwordAction === 'hash_plain'
+                            ? 'Password baru (di-hash Bcrypt)'
+                            : 'Password default otomatis (di-hash Bcrypt)',
+                        'sensitive' => false,
+                    ];
+                }
+
+                if ($role === 'admin') {
+                    $sensitiveTags[] = 'NEW_ADMIN';
+                    $securityAlerts[] = [
+                        'severity' => 'critical',
+                        'tag'      => 'NEW_ADMIN',
+                        'row'      => $rowNumber,
+                        'name'     => $rawName,
+                        'email'    => $email,
+                        'message'  => "{$rawName} (Baris {$rowNumber}): Akun BARU akan dibuat dengan hak akses Administrator.",
+                    ];
+                }
+
+                $plannedCreated++;
+                if ($willHashPassword) {
+                    $plannedHashed++;
+                }
+
+                $changes[] = [
+                    'row'            => $rowNumber,
+                    'action'         => 'created',
+                    'user_id'        => null,
+                    'name'           => $rawName,
+                    'email'          => $email,
+                    'department'     => $normalizedDept,
+                    'role'           => $role,
+                    'sensitive'      => !empty($sensitiveTags),
+                    'sensitive_tags' => $sensitiveTags,
+                    'diffs'          => $diffs,
+                ];
+
+                $hashEntries[] = [
+                    'row'          => $rowNumber,
+                    'action'       => 'created',
+                    'name'         => $rawName,
+                    'email'        => strtolower((string) $email),
+                    'department'   => $normalizedDept,
+                    'subdivision'  => $rawSubdivision,
+                    'phone'        => (string) ($normalizedPhone ?? ''),
+                    'role'         => $role,
+                    'active'       => !$isInactive,
+                    'pass_fp'      => $rawPassword !== '' ? hash('sha256', $rawPassword) : 'auto',
+                ];
+
+                $plannedOps[] = [
+                    'action'            => 'created',
+                    'row'               => $rowNumber,
+                    'raw_name'          => $rawName,
+                    'normalized_dept'   => $normalizedDept,
+                    'target_subdiv'     => $rawSubdivision ?: null,
+                    'target_phone'      => $normalizedPhone,
+                    'target_email'      => $email,
+                    'role'              => $role,
+                    'target_active'     => !$isInactive,
+                    'is_inactive'       => $isInactive,
+                    'password_action'   => $passwordAction,
+                    'raw_password'      => $rawPassword,
+                    'normalized_phone'  => $normalizedPhone,
+                ];
+            }
+        }
+
+        // Deterministic hash of planned changes for anti-tamper (TOCTOU) verification
+        $previewHash = hash('sha256', json_encode([
+            'spreadsheet_id' => $this->spreadsheetId,
+            'entries'        => $hashEntries,
+            'errors_count'   => count($errors),
+        ], JSON_UNESCAPED_UNICODE));
+
+        // DRY-RUN RESPONSE: Return preview without modifying DB, Sheet, or Audit Logs
+        if ($dryRun) {
+            if ($plannedCreated === 0 && $plannedUpdated === 0 && $plannedHashed === 0 && $skipped === 0 && count($errors) > 0) {
+                $previewMsg = 'Pratinjau menemukan ' . count($errors) . ' baris bermasalah. Contoh: ' . $errors[0];
+            } elseif ($plannedCreated === 0 && $plannedUpdated === 0 && $plannedHashed === 0 && count($errors) === 0) {
+                $previewMsg = "Seluruh {$skipped} data karyawan sudah sesuai (tidak ada perubahan).";
+            } else {
+                $previewMsg = "Pratinjau: {$plannedCreated} akun baru, {$plannedUpdated} akun diperbarui, {$plannedHashed} password akan di-hash" . ($skipped > 0 ? " ({$skipped} tidak berubah)." : ".");
+            }
+
+            return [
+                'success'          => count($errors) === 0 || ($plannedCreated > 0 || $plannedUpdated > 0 || $skipped > 0),
+                'dry_run'          => true,
+                'stale_preview'    => false,
+                'preview_hash'     => $previewHash,
+                'created'          => $plannedCreated,
+                'updated'          => $plannedUpdated,
+                'hashed_passwords' => $plannedHashed,
+                'skipped'          => $skipped,
+                'errors'           => $errors,
+                'changes'          => $changes,
+                'security_alerts'  => $securityAlerts,
+                'spreadsheet_url'  => $this->getSpreadsheetUrl(),
+                'message'          => $previewMsg,
+            ];
+        }
+
+        // ANTI-TAMPER CHECK (TOCTOU): Ensure sheet didn't change between preview and confirm
+        if ($expectedPreviewHash !== null && $expectedPreviewHash !== '' && !hash_equals($previewHash, $expectedPreviewHash)) {
+            Log::warning("EmployeeSheetService: Preview hash mismatch detected during sync for spreadsheet {$this->spreadsheetId}. Aborting write and returning fresh preview.");
+
+            return [
+                'success'          => false,
+                'dry_run'          => true,
+                'stale_preview'    => true,
+                'preview_hash'     => $previewHash,
+                'created'          => $plannedCreated,
+                'updated'          => $plannedUpdated,
+                'hashed_passwords' => $plannedHashed,
+                'skipped'          => $skipped,
+                'errors'           => $errors,
+                'changes'          => $changes,
+                'security_alerts'  => $securityAlerts,
+                'spreadsheet_url'  => $this->getSpreadsheetUrl(),
+                'message'          => 'Isi Google Spreadsheet berubah sejak pratinjau terakhir. Harap periksa ulang rincian perubahan terbaru sebelum menerapkan.',
+            ];
+        }
+
+        // =====================================================================
+        // PHASE 2: EXECUTE PLANNED OPERATIONS (DB writes, Bcrypt, Sheet write-back)
+        // =====================================================================
+        $created = 0;
+        $updated = 0;
+        $hashedCount = 0;
+        $appliedChanges = [];
+
+        foreach ($plannedOps as $idx => $op) {
+            $rowNumber = $op['row'];
+            $rawName = $op['raw_name'];
+
+            try {
+                // Compute Bcrypt hash only now during real execution
+                $passwordForDb = null;
+                $newHashToWriteBack = null;
+
+                if ($op['password_action'] === 'use_existing_hash') {
+                    $passwordForDb = $op['raw_password'];
+                } elseif ($op['password_action'] === 'hash_plain') {
+                    $passwordForDb = Hash::make($op['raw_password']);
+                    $newHashToWriteBack = $passwordForDb;
+                    $hashedCount++;
+                } elseif ($op['password_action'] === 'generate_default') {
+                    $defaultPass = 'Telunas#' . substr($op['normalized_phone'] ?: (string) rand(1000, 9999), -4);
                     $passwordForDb = Hash::make($defaultPass);
                     $newHashToWriteBack = $passwordForDb;
                     $hashedCount++;
                 }
-            }
 
-            try {
-                if ($existingUser) {
-                    $before = [
-                        'name'            => $existingUser->name,
-                        'staff_name'      => $existingUser->staff_name,
-                        'email'           => $existingUser->email,
-                        'role'            => $existingUser->role,
-                        'department'      => $existingUser->department,
-                        'subdivision'     => $existingUser->subdivision,
-                        'whatsapp_number' => $existingUser->whatsapp_number,
-                        'is_active'       => (bool) $existingUser->is_active,
-                    ];
-                    $passwordChanged = !empty($passwordForDb);
+                if ($op['action'] === 'updated') {
+                    /** @var User $existingUser */
+                    $existingUser = $op['existing_user'];
+                    $before = $op['before'];
+                    $passwordChanged = ($op['password_action'] === 'hash_plain');
 
-                    $targetSubdivision = $rawSubdivision !== '' ? $rawSubdivision : $existingUser->subdivision;
-                    $targetPhone = $normalizedPhone ?: $existingUser->whatsapp_number;
-                    $targetEmail = !empty($rawEmail) ? $rawEmail : $existingUser->email;
-                    $targetActive = !$isInactive;
-                    $trashChanged = ($isInactive && !$existingUser->trashed()) || (!$isInactive && $existingUser->trashed());
-
-                    $hasDataChanges = $passwordChanged
-                        || $trashChanged
-                        || $before['name'] !== $rawName
-                        || $before['staff_name'] !== $rawName
-                        || $before['department'] !== $normalizedDept
-                        || $before['subdivision'] !== $targetSubdivision
-                        || self::normalizePhoneNumber($before['whatsapp_number']) !== self::normalizePhoneNumber($targetPhone)
-                        || strtolower((string) $before['email']) !== strtolower((string) $targetEmail)
-                        || $before['role'] !== $role
-                        || $before['is_active'] !== $targetActive;
-
-                    // Smart Dirty Check: Skip DB save, audit log, and sheet write-back for unchanged rows!
-                    if (!$hasDataChanges && !$newHashToWriteBack) {
-                        if (!str_starts_with($rawSyncStatus, 'Tersinkron')) {
-                            $updatesToSheet[] = [
-                                'range'  => "{$tabName}!I{$rowNumber}",
-                                'values' => [["Tersinkron ({$nowStr})"]],
-                            ];
-                        }
-                        $skipped++;
-                        continue;
-                    }
-
-                    // Update existing user
                     $existingUser->name = $rawName;
                     $existingUser->staff_name = $rawName;
-                    $existingUser->department = $normalizedDept;
-                    $existingUser->subdivision = $targetSubdivision;
-                    $existingUser->whatsapp_number = $targetPhone;
-                    $existingUser->email = $targetEmail;
+                    $existingUser->department = $op['normalized_dept'];
+                    $existingUser->subdivision = $op['target_subdiv'];
+                    $existingUser->whatsapp_number = $op['target_phone'];
+                    $existingUser->email = $op['target_email'];
                     if ($passwordForDb) {
                         $existingUser->password = $passwordForDb;
                     }
-                    $existingUser->role = $role;
-                    $existingUser->is_active = $targetActive;
+                    $existingUser->role = $op['role'];
+                    $existingUser->is_active = $op['target_active'];
 
-                    if ($isInactive && !$existingUser->trashed()) {
+                    if ($op['is_inactive'] && !$existingUser->trashed()) {
                         $existingUser->delete();
-                    } elseif (!$isInactive && $existingUser->trashed()) {
+                    } elseif (!$op['is_inactive'] && $existingUser->trashed()) {
                         $existingUser->restore();
                     }
 
                     $existingUser->save();
                     $updated++;
 
-                    // Refresh in-memory maps
-                    if (!empty($existingUser->email)) {
-                        $usersByEmail[strtolower(trim((string) $existingUser->email))] = $existingUser;
+                    if (isset($changes[$idx])) {
+                        $appliedChanges[] = $changes[$idx];
                     }
-                    if ($targetPhone) {
-                        $usersByPhone[self::normalizePhoneNumber($targetPhone)] = $existingUser;
-                    }
-                    $usersByName[strtolower($rawName)] = $existingUser;
 
                     $after = [
                         'name'            => $existingUser->name,
@@ -552,27 +922,24 @@ class EmployeeSheetService
                     $newUser = new User([
                         'name'            => $rawName,
                         'staff_name'      => $rawName,
-                        'email'           => $email,
-                        'whatsapp_number' => $normalizedPhone,
-                        'department'      => $normalizedDept,
-                        'subdivision'     => $rawSubdivision ?: null,
-                        'role'            => $role,
+                        'email'           => $op['target_email'],
+                        'whatsapp_number' => $op['target_phone'],
+                        'department'      => $op['normalized_dept'],
+                        'subdivision'     => $op['target_subdiv'],
+                        'role'            => $op['role'],
                         'password'        => $passwordForDb,
-                        'is_active'       => !$isInactive,
+                        'is_active'       => $op['target_active'],
                         'approval_status' => 'approved',
-                        'permissions'     => UserController::getDefaultPermissions($role),
+                        'permissions'     => UserController::getDefaultPermissions($op['role']),
                     ]);
                     $newUser->save();
                     $created++;
 
-                    // Register in-memory maps
-                    if (!empty($newUser->email)) {
-                        $usersByEmail[strtolower(trim((string) $newUser->email))] = $newUser;
+                    if (isset($changes[$idx])) {
+                        $changeItem = $changes[$idx];
+                        $changeItem['user_id'] = $newUser->id;
+                        $appliedChanges[] = $changeItem;
                     }
-                    if ($normalizedPhone) {
-                        $usersByPhone[$normalizedPhone] = $newUser;
-                    }
-                    $usersByName[strtolower($rawName)] = $newUser;
 
                     if ($actingAdmin) {
                         try {
@@ -700,11 +1067,16 @@ class EmployeeSheetService
 
         return [
             'success'          => count($errors) === 0 || ($created > 0 || $updated > 0 || $skipped > 0),
+            'dry_run'          => false,
+            'stale_preview'    => false,
+            'preview_hash'     => $previewHash,
             'created'          => $created,
             'updated'          => $updated,
             'hashed_passwords' => $hashedCount,
             'skipped'          => $skipped,
             'errors'           => $errors,
+            'changes'          => $appliedChanges,
+            'security_alerts'  => $securityAlerts,
             'spreadsheet_url'  => $this->getSpreadsheetUrl(),
             'message'          => $summaryMessage,
         ];

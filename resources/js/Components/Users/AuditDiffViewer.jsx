@@ -22,6 +22,11 @@ const FIELD_CONFIG = {
     department: { label: 'Departemen', icon: Building2 },
     subdivision: { label: 'Subdivisi', icon: Building2 },
     whatsapp_number: { label: 'Nomor WhatsApp', icon: Phone },
+    is_active: {
+        label: 'Status Akun',
+        icon: CheckCircle2,
+        format: (val) => (val === false || val === 0 || val === 'false' ? 'Nonaktif' : 'Aktif'),
+    },
 };
 
 const PERMISSION_CONFIG = {

@@ -409,4 +409,99 @@ class EmployeeSheetSyncTest extends TestCase
         $this->assertEquals($admin->id, $passLog->admin_id);
         $this->assertTrue($passLog->changes['after']['password_reset']);
     }
+
+    public function test_dry_run_preview_detects_admin_promotion_without_mutating_database_and_enforces_preview_hash(): void
+    {
+        $admin = User::factory()->create([
+            'role'       => 'admin',
+            'department' => 'IT',
+            'staff_name' => 'Admin Reviewer',
+        ]);
+
+        $existingHash = Hash::make('StaySafe2026!');
+        $staff = User::factory()->create([
+            'name'            => 'Ana Marketing',
+            'staff_name'      => 'Ana Marketing',
+            'email'           => 'ana@telunasresorts.com',
+            'whatsapp_number' => '628123999888',
+            'department'      => 'HR',
+            'role'            => 'staff',
+            'password'        => $existingHash,
+        ]);
+
+        $mockSheets = $this->createMock(Sheets::class);
+        $mockSpreadsheets = $this->createMock(Spreadsheets::class);
+        $mockValues = $this->createMock(SpreadsheetsValues::class);
+
+        $mockSheets->spreadsheets = $mockSpreadsheets;
+        $mockSheets->spreadsheets_values = $mockValues;
+
+        $meta = new Spreadsheet();
+        $sheetObj = new Sheet();
+        $props = new SheetProperties();
+        $props->setTitle('Data Karyawan');
+        $sheetObj->setProperties($props);
+        $meta->setSheets([$sheetObj]);
+        $mockSpreadsheets->method('get')->willReturn($meta);
+
+        // Sheet promotes Ana Marketing from staff -> admin
+        $valRange = new ValueRange();
+        $valRange->setValues([
+            ['Ana Marketing', 'HR', '628123999888', 'ana@telunasresorts.com', $existingHash, 'admin', '', 'Aktif', ''],
+        ]);
+        $mockValues->method('get')->willReturn($valRange);
+
+        // batchUpdate MUST NOT be called during dry-run or stale hash rejection
+        $batchUpdateCalls = 0;
+        $mockValues->method('batchUpdate')->willReturnCallback(function () use (&$batchUpdateCalls) {
+            $batchUpdateCalls++;
+            return true;
+        });
+
+        $service = new EmployeeSheetService();
+        $service->setSpreadsheetId('1TEST_MOCK_EMPLOYEE_SHEET_ID_ABCD1234567890');
+        $reflection = new \ReflectionClass($service);
+        $prop = $reflection->getProperty('sheets');
+        $prop->setAccessible(true);
+        $prop->setValue($service, $mockSheets);
+
+        // 1. Dry-run preview
+        $preview = $service->syncEmployeesFromSheet($admin, true);
+
+        $this->assertTrue($preview['success']);
+        $this->assertTrue($preview['dry_run']);
+        $this->assertFalse($preview['stale_preview']);
+        $this->assertNotEmpty($preview['preview_hash']);
+        $this->assertEquals(1, $preview['updated']);
+        $this->assertCount(1, $preview['changes']);
+        $this->assertEquals('Ana Marketing', $preview['changes'][0]['name']);
+        $this->assertTrue($preview['changes'][0]['sensitive']);
+        $this->assertContains('PROMOTED_TO_ADMIN', $preview['changes'][0]['sensitive_tags']);
+        $this->assertCount(1, $preview['security_alerts']);
+        $this->assertEquals('critical', $preview['security_alerts'][0]['severity']);
+        $this->assertEquals(0, $batchUpdateCalls);
+
+        // Database must remain untouched after dry-run
+        $this->assertEquals('staff', $staff->fresh()->role);
+        $this->assertEquals(0, UserAuditLog::where('target_user_id', $staff->id)->count());
+
+        // 2. Stale preview hash (simulating sheet tampering between preview and apply) MUST be rejected
+        $staleAttempt = $service->syncEmployeesFromSheet($admin, false, str_repeat('0', 64));
+
+        $this->assertFalse($staleAttempt['success']);
+        $this->assertTrue($staleAttempt['stale_preview']);
+        $this->assertEquals('staff', $staff->fresh()->role);
+        $this->assertEquals(0, $batchUpdateCalls);
+
+        // 3. Valid preview hash applies the change cleanly
+        $applied = $service->syncEmployeesFromSheet($admin, false, $preview['preview_hash']);
+
+        $this->assertTrue($applied['success']);
+        $this->assertFalse($applied['dry_run']);
+        $this->assertFalse($applied['stale_preview']);
+        $this->assertEquals(1, $applied['updated']);
+        $this->assertCount(1, $applied['changes']);
+        $this->assertEquals('admin', $staff->fresh()->role);
+        $this->assertEquals(1, $batchUpdateCalls);
+    }
 }
