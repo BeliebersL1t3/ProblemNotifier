@@ -2240,9 +2240,30 @@ export function LeanAnalyticsView({
                                 <option value="yearly">{isEn ? '📆 Yearly (Annual)' : '📆 Per Tahun (Tahunan)'}</option>
                             </select>
                         </div>
-                        <div className="w-full h-[240px]">
+                        {/* Clear Top Legend & Explanation */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5 text-[11px]">
+                            <div className="flex flex-wrap items-center gap-3">
+                                <span className={`inline-flex items-center gap-1.5 font-semibold ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>
+                                    <span className="w-2.5 h-2.5 rounded-xs bg-sky-400 inline-block shrink-0" />
+                                    <span>{isEn ? 'New Issues (Total)' : 'Isu Masuk (Total)'}</span>
+                                </span>
+                                <span className={`inline-flex items-center gap-1.5 font-semibold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                                    <span className="inline-flex items-center shrink-0">
+                                        <span className="w-3 h-0.5 bg-emerald-500 inline-block" />
+                                        <span className="w-2 h-2 rounded-full bg-emerald-500 -ml-2 inline-block" />
+                                    </span>
+                                    <span>{isEn ? 'Resolved' : 'Sudah Selesai'}</span>
+                                </span>
+                            </div>
+                            <span className={`text-[10.5px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                {isEn
+                                    ? 'Green dot shows how many issues have been resolved.'
+                                    : 'Titik hijau menunjukkan jumlah isu yang telah diselesaikan.'}
+                            </span>
+                        </div>
+                        <div className="w-full h-[235px]">
                             <ResponsiveContainer width="100%" height="100%">
-                                <ComposedChart data={trendChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                <ComposedChart data={trendChartData} margin={{ top: 20, right: 14, left: -20, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} opacity={0.6} />
                                     <XAxis
                                         dataKey="name"
@@ -2266,23 +2287,56 @@ export function LeanAnalyticsView({
                                         }}
                                         itemStyle={{ color: isDark ? '#f8fafc' : '#0f172a' }}
                                     />
-                                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
                                     <Bar
                                         dataKey="total"
-                                        name={isEn ? 'New Issues' : 'Isu Masuk'}
+                                        name={isEn ? 'New Issues (Total)' : 'Isu Masuk (Total)'}
                                         fill="#38bdf8"
                                         radius={[4, 4, 0, 0]}
                                         barSize={trendPeriodMode === '1y' ? 12 : (trendPeriodMode === 'yearly' || trendPeriodMode === 'semester' ? 32 : 18)}
-                                    />
+                                    >
+                                        <LabelList
+                                            dataKey="total"
+                                            position="top"
+                                            formatter={(val) => (val > 0 ? val : '')}
+                                            style={{
+                                                fill: isDark ? '#7dd3fc' : '#0369a1',
+                                                fontSize: '10px',
+                                                fontWeight: 700,
+                                            }}
+                                        />
+                                    </Bar>
                                     <Line
                                         type="monotone"
                                         dataKey="resolved"
-                                        name={isEn ? 'Resolved' : 'Selesai'}
+                                        name={isEn ? 'Resolved' : 'Sudah Selesai'}
                                         stroke="#10b981"
                                         strokeWidth={2.5}
                                         dot={{ r: 3.5, fill: '#10b981' }}
                                         activeDot={{ r: 5 }}
-                                    />
+                                    >
+                                        <LabelList
+                                            dataKey="resolved"
+                                            content={(props) => {
+                                                const { x, y, value, index } = props;
+                                                const row = trendChartData[index];
+                                                if (!row || row.total <= 0 || value === row.total) {
+                                                    return null;
+                                                }
+                                                return (
+                                                    <text
+                                                        x={x}
+                                                        y={Number(y) + 15}
+                                                        textAnchor="middle"
+                                                        fill={isDark ? '#6ee7b7' : '#047857'}
+                                                        fontSize={10}
+                                                        fontWeight={700}
+                                                    >
+                                                        {value}
+                                                    </text>
+                                                );
+                                            }}
+                                        />
+                                    </Line>
                                 </ComposedChart>
                             </ResponsiveContainer>
                         </div>
