@@ -124,7 +124,7 @@ class EmployeeSheetService
     }
 
     /**
-     * Standard 9-column headers for Employee Master Spreadsheet.
+     * Standard 11-column headers for Employee Master Spreadsheet (A-K).
      */
     public static function getHeaders(): array
     {
@@ -138,7 +138,70 @@ class EmployeeSheetService
             'Subdivisi',
             'Status Akun',
             'Status Sinkronisasi',
+            'Tanggal Dibuat',
+            'Dibuat Oleh',
         ];
+    }
+
+    /**
+     * Format user creation timestamp in WIB (dd/mm/YYYY HH:ii WIB).
+     */
+    public static function formatCreatedAtWib($createdAt): string
+    {
+        if (empty($createdAt)) {
+            return '-';
+        }
+        try {
+            return Carbon::parse($createdAt)->timezone('Asia/Jakarta')->format('d/m/Y H:i') . ' WIB';
+        } catch (\Throwable $e) {
+            Log::warning('EmployeeSheetService: Failed formatting created_at timestamp: ' . $e->getMessage());
+            return '-';
+        }
+    }
+
+    /**
+     * Batch-resolve account creator names from UserAuditLog in 1 DB query (no N+1).
+     *
+     * @param  array<int>  $userIds
+     * @return array<int, string>
+     */
+    public static function resolveCreatorsMap(array $userIds = []): array
+    {
+        $query = UserAuditLog::whereIn('action', ['USER_CREATED', 'USER_CREATED_VIA_SHEET_SYNC'])
+            ->whereNotNull('target_user_id')
+            ->orderBy('id', 'asc');
+
+        if (!empty($userIds)) {
+            $query->whereIn('target_user_id', $userIds);
+        }
+
+        $logs = $query->get(['target_user_id', 'admin_name']);
+        $map = [];
+        foreach ($logs as $log) {
+            $uid = (int) $log->target_user_id;
+            if (!isset($map[$uid]) && !empty($log->admin_name)) {
+                $map[$uid] = trim((string) $log->admin_name);
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * Resolve creator name for a single user from UserAuditLog with safe fallback.
+     */
+    public static function resolveCreatorNameForUser(User $user, ?string $fallbackActor = null): string
+    {
+        $map = self::resolveCreatorsMap([(int) $user->id]);
+        if (!empty($map[(int) $user->id])) {
+            return $map[(int) $user->id];
+        }
+
+        if (!empty($fallbackActor)) {
+            return trim($fallbackActor);
+        }
+
+        return 'Sistem / Data Awal';
     }
 
     /**
@@ -150,7 +213,7 @@ class EmployeeSheetService
             throw new \RuntimeException('Spreadsheet ID belum dikonfigurasi. Hubungkan spreadsheet terlebih dahulu.');
         }
 
-        $cacheKey = "employee_sheet_header_ready_v2:{$this->spreadsheetId}";
+        $cacheKey = "employee_sheet_header_ready_v3:{$this->spreadsheetId}";
         if (!$forceRefresh) {
             $cachedTitle = Cache::get($cacheKey);
             if (is_string($cachedTitle) && $cachedTitle !== '') {
@@ -213,12 +276,12 @@ class EmployeeSheetService
             }
         }
 
-        // Write header row A1:I1
+        // Write header row A1:K1
         $headerValues = [self::getHeaders()];
         $body = new ValueRange(['values' => $headerValues]);
         $service->spreadsheets_values->update(
             $this->spreadsheetId,
-            "{$targetTitle}!A1:I1",
+            "{$targetTitle}!A1:K1",
             $body,
             ['valueInputOption' => 'USER_ENTERED']
         );
@@ -231,7 +294,7 @@ class EmployeeSheetService
                     'startRowIndex'    => 0,
                     'endRowIndex'      => 1,
                     'startColumnIndex' => 0,
-                    'endColumnIndex'   => 9,
+                    'endColumnIndex'   => 11,
                 ],
                 'cell' => [
                     'userEnteredFormat' => [
@@ -1097,6 +1160,11 @@ class EmployeeSheetService
                             Log::warning("EmployeeSheetService: Failed recording audit log for new user {$newUser->id}: " . $logEx->getMessage());
                         }
                     }
+                    // Write creation timestamp (Col J) and creator name (Col K) back to sheet for newly created user
+                    $updatesToSheet[] = [
+                        'range'  => "{$tabName}!J{$rowNumber}:K{$rowNumber}",
+                        'values' => [[self::formatCreatedAtWib($newUser->created_at), $actingAdminName]],
+                    ];
                 }
 
                 // If password was hashed or updated, write Bcrypt hash back to Column E
@@ -1239,6 +1307,7 @@ class EmployeeSheetService
             ->get();
 
         $nowStr = Carbon::now('Asia/Jakarta')->format('d/m/Y H:i');
+        $creatorsByUserId = self::resolveCreatorsMap($users->pluck('id')->all());
         $rows = [];
 
         foreach ($users as $user) {
@@ -1251,6 +1320,8 @@ class EmployeeSheetService
             $subdiv = $user->subdivision ?: '';
             $status = ($user->trashed() || !$user->is_active) ? 'Nonaktif' : 'Aktif';
             $syncStatus = "Tersinkron ({$nowStr})";
+            $createdAtStr = self::formatCreatedAtWib($user->created_at);
+            $createdByStr = $creatorsByUserId[(int) $user->id] ?? 'Sistem / Data Awal';
 
             $rows[] = [
                 $name,
@@ -1262,13 +1333,15 @@ class EmployeeSheetService
                 $subdiv,
                 $status,
                 $syncStatus,
+                $createdAtStr,
+                $createdByStr,
             ];
         }
 
-        // Clear existing data from A2:I
+        // Clear existing data from A2:K
         try {
             $clearReq = new \Google\Service\Sheets\ClearValuesRequest();
-            $service->spreadsheets_values->clear($this->spreadsheetId, "{$tabName}!A2:I", $clearReq);
+            $service->spreadsheets_values->clear($this->spreadsheetId, "{$tabName}!A2:K", $clearReq);
         } catch (\Throwable $e) {
             Log::warning('EmployeeSheetService: clear values warning: ' . $e->getMessage());
         }
@@ -1277,7 +1350,7 @@ class EmployeeSheetService
             $body = new ValueRange(['values' => $rows]);
             $service->spreadsheets_values->update(
                 $this->spreadsheetId,
-                "{$tabName}!A2:I" . (count($rows) + 1),
+                "{$tabName}!A2:K" . (count($rows) + 1),
                 $body,
                 ['valueInputOption' => 'USER_ENTERED']
             );
@@ -1322,7 +1395,7 @@ class EmployeeSheetService
             $tabName = $this->ensureSheetAndHeaders();
             $service = $this->getSheetsService();
 
-            $range = "{$tabName}!A2:I";
+            $range = "{$tabName}!A2:K";
             $response = $service->spreadsheets_values->get($this->spreadsheetId, $range);
             $rows = $response->getValues() ?: [];
 
@@ -1345,6 +1418,8 @@ class EmployeeSheetService
             }
 
             $nowStr = Carbon::now('Asia/Jakarta')->format('d/m/Y H:i');
+            $createdAtStr = self::formatCreatedAtWib($user->created_at);
+            $createdByStr = self::resolveCreatorNameForUser($user);
             $rowData = [
                 $user->staff_name ?: $user->name,
                 $user->department ?: 'Umum',
@@ -1355,6 +1430,8 @@ class EmployeeSheetService
                 $user->subdivision ?: '',
                 ($user->trashed() || !$user->is_active) ? 'Nonaktif' : 'Aktif',
                 "Tersinkron ({$nowStr})",
+                $createdAtStr,
+                $createdByStr,
             ];
 
             if ($targetRowIndex !== null) {
@@ -1362,7 +1439,7 @@ class EmployeeSheetService
                 $body = new ValueRange(['values' => [$rowData]]);
                 $service->spreadsheets_values->update(
                     $this->spreadsheetId,
-                    "{$tabName}!A{$targetRowIndex}:I{$targetRowIndex}",
+                    "{$tabName}!A{$targetRowIndex}:K{$targetRowIndex}",
                     $body,
                     ['valueInputOption' => 'USER_ENTERED']
                 );
@@ -1371,7 +1448,7 @@ class EmployeeSheetService
                 $body = new ValueRange(['values' => [$rowData]]);
                 $service->spreadsheets_values->append(
                     $this->spreadsheetId,
-                    "{$tabName}!A:I",
+                    "{$tabName}!A:K",
                     $body,
                     ['valueInputOption' => 'USER_ENTERED']
                 );

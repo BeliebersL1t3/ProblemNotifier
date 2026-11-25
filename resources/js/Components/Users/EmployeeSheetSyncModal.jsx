@@ -489,6 +489,12 @@ export function EmployeeSheetSyncModal({ isOpen, onClose, onSyncSuccess }) {
                             <div className="p-1.5 rounded-lg bg-slate-900/60 border border-slate-800">
                                 <span className="font-mono text-emerald-400 font-bold">Kolom I:</span> Status Sinkronisasi
                             </div>
+                            <div className="p-1.5 rounded-lg bg-slate-900/60 border border-slate-800">
+                                <span className="font-mono text-emerald-400 font-bold">Kolom J:</span> Tanggal Dibuat (Otomatis)
+                            </div>
+                            <div className="p-1.5 rounded-lg bg-slate-900/60 border border-slate-800">
+                                <span className="font-mono text-emerald-400 font-bold">Kolom K:</span> Dibuat Oleh (Otomatis)
+                            </div>
                         </div>
                         <div className="pt-1.5 border-t border-slate-800 text-[10.5px] text-emerald-300/90 flex items-start gap-1.5">
                             <KeyRound className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />

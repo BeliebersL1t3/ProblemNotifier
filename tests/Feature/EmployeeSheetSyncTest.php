@@ -342,7 +342,7 @@ class EmployeeSheetSyncTest extends TestCase
         $success = $service->syncSingleEmployeeToSheet($user);
 
         $this->assertTrue($success);
-        $this->assertEquals('Data Karyawan!A2:I2', $updatedRange);
+        $this->assertEquals('Data Karyawan!A2:K2', $updatedRange);
     }
 
     public function test_sync_employees_records_password_updated_via_sheet_sync_audit_log(): void
@@ -763,13 +763,21 @@ class EmployeeSheetSyncTest extends TestCase
         $this->assertEquals(['staff', 'admin'], $allowedRoleValues);
 
         $rolesByEmail = [];
+        $rowsByEmail = [];
         foreach ($exportedRows as $r) {
             $rolesByEmail[$r[3]] = $r[5];
+            $rowsByEmail[$r[3]] = $r;
         }
         $this->assertEquals('staff', $rolesByEmail['siti@telunasresorts.com']);
         $this->assertEquals('admin', $rolesByEmail['budi.admin@telunasresorts.com']);
+        // Verify Column J (Tanggal Dibuat) and Column K (Dibuat Oleh)
+        $this->assertStringEndsWith(' WIB', $rowsByEmail['siti@telunasresorts.com'][9]);
+        $this->assertEquals('Sistem / Data Awal', $rowsByEmail['siti@telunasresorts.com'][10]);
 
-        // 2. Single-user sync Web -> Sheet must also write 'staff' (NOT 'department')
+        // Record a USER_CREATED audit log for Siti Dept and verify single-user sync picks up creator name
+        UserAuditLog::record($adminUser, $deptUser, 'USER_CREATED', ['created_user' => ['name' => $deptUser->name]], null, null, null, false);
+
+        // 2. Single-user sync Web -> Sheet must also write 'staff' (NOT 'department') and creator info in J & K
         $singleRow = null;
         $mockValuesSingle = $this->createMock(SpreadsheetsValues::class);
         $valRangeSingle = new ValueRange();
@@ -785,6 +793,8 @@ class EmployeeSheetSyncTest extends TestCase
 
         $this->assertTrue($service->syncSingleEmployeeToSheet($deptUser));
         $this->assertEquals('staff', $singleRow[5]);
+        $this->assertStringEndsWith(' WIB', $singleRow[9]);
+        $this->assertEquals('Budi Admin', $singleRow[10]);
 
         // 3. Round-trip Sheet ('staff') -> Web (DB has 'department') must produce 0 false changes
         $mockValuesRoundTrip = $this->createMock(SpreadsheetsValues::class);
