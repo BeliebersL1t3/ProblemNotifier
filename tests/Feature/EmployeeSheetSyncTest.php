@@ -677,4 +677,102 @@ class EmployeeSheetSyncTest extends TestCase
         $this->assertFalse($delivery['whatsapp_sent']);
         $this->assertTrue($delivery['email_sent']);
     }
+
+    public function test_department_role_exports_as_staff_to_sheet_and_round_trips_without_false_diff(): void
+    {
+        $existingHash = Hash::make('DeptUser2026!');
+        $deptUser = User::factory()->create([
+            'name'            => 'Siti Dept',
+            'staff_name'      => 'Siti Dept',
+            'email'           => 'siti@telunasresorts.com',
+            'whatsapp_number' => '628123555666',
+            'department'      => 'HR',
+            'subdivision'     => 'HR',
+            'role'            => 'department',
+            'password'        => $existingHash,
+            'is_active'       => true,
+        ]);
+
+        $adminUser = User::factory()->create([
+            'name'            => 'Budi Admin',
+            'staff_name'      => 'Budi Admin',
+            'email'           => 'budi.admin@telunasresorts.com',
+            'whatsapp_number' => '628123777888',
+            'department'      => 'IT',
+            'role'            => 'admin',
+            'password'        => $existingHash,
+            'is_active'       => true,
+        ]);
+
+        $mockSheets = $this->createMock(Sheets::class);
+        $mockSpreadsheets = $this->createMock(Spreadsheets::class);
+        $mockValues = $this->createMock(SpreadsheetsValues::class);
+        $mockSheets->spreadsheets = $mockSpreadsheets;
+        $mockSheets->spreadsheets_values = $mockValues;
+
+        $meta = new Spreadsheet();
+        $sheetObj = new Sheet();
+        $props = new SheetProperties();
+        $props->setTitle('Data Karyawan');
+        $sheetObj->setProperties($props);
+        $meta->setSheets([$sheetObj]);
+        $mockSpreadsheets->method('get')->willReturn($meta);
+
+        $exportedRows = [];
+        $mockValues->method('clear')->willReturn(true);
+        $mockValues->method('update')->willReturnCallback(function ($sheetId, $range, $body) use (&$exportedRows) {
+            $exportedRows = $body->getValues();
+            return true;
+        });
+
+        $service = new EmployeeSheetService();
+        $service->setSpreadsheetId('1TEST_MOCK_EMPLOYEE_SHEET_ID_ABCD1234567890');
+        $reflection = new \ReflectionClass($service);
+        $prop = $reflection->getProperty('sheets');
+        $prop->setAccessible(true);
+        $prop->setValue($service, $mockSheets);
+
+        // 1. Export Web -> Sheet must write 'staff' (NOT 'department') for department users, and 'admin' for admins
+        $exportRes = $service->exportAllEmployeesToSheet();
+        $this->assertTrue($exportRes['success']);
+
+        $rolesByEmail = [];
+        foreach ($exportedRows as $r) {
+            $rolesByEmail[$r[3]] = $r[5];
+        }
+        $this->assertEquals('staff', $rolesByEmail['siti@telunasresorts.com']);
+        $this->assertEquals('admin', $rolesByEmail['budi.admin@telunasresorts.com']);
+
+        // 2. Single-user sync Web -> Sheet must also write 'staff' (NOT 'department')
+        $singleRow = null;
+        $mockValuesSingle = $this->createMock(SpreadsheetsValues::class);
+        $valRangeSingle = new ValueRange();
+        $valRangeSingle->setValues([
+            ['Siti Dept', 'HR', '628123555666', 'siti@telunasresorts.com', $existingHash, 'department', 'HR', 'Aktif', 'Tersinkron'],
+        ]);
+        $mockValuesSingle->method('get')->willReturn($valRangeSingle);
+        $mockValuesSingle->method('update')->willReturnCallback(function ($sheetId, $range, $body) use (&$singleRow) {
+            $singleRow = $body->getValues()[0] ?? null;
+            return true;
+        });
+        $mockSheets->spreadsheets_values = $mockValuesSingle;
+
+        $this->assertTrue($service->syncSingleEmployeeToSheet($deptUser));
+        $this->assertEquals('staff', $singleRow[5]);
+
+        // 3. Round-trip Sheet ('staff') -> Web (DB has 'department') must produce 0 false changes
+        $mockValuesRoundTrip = $this->createMock(SpreadsheetsValues::class);
+        $valRangeRoundTrip = new ValueRange();
+        $valRangeRoundTrip->setValues([
+            ['Siti Dept', 'HR', '628123555666', 'siti@telunasresorts.com', $existingHash, 'staff', 'HR', 'Aktif', 'Tersinkron'],
+        ]);
+        $mockValuesRoundTrip->method('get')->willReturn($valRangeRoundTrip);
+        $mockSheets->spreadsheets_values = $mockValuesRoundTrip;
+
+        $preview = $service->syncEmployeesFromSheet($adminUser, true);
+        $this->assertTrue($preview['success']);
+        $this->assertEquals(0, $preview['updated']);
+        $this->assertEquals(1, $preview['skipped']);
+        $this->assertEmpty($preview['changes']);
+    }
 }

@@ -300,6 +300,14 @@ class EmployeeSheetService
     }
 
     /**
+     * Normalize internal DB role ('admin' | 'department' | 'staff') into Google Sheet Column F value ('admin' | 'staff').
+     */
+    public static function toSheetRole(?string $role): string
+    {
+        return strtolower(trim((string) $role)) === 'admin' ? 'admin' : 'staff';
+    }
+
+    /**
      * Format role code into human-readable Indonesian label.
      */
     private static function formatRoleLabel(?string $role): string
@@ -308,10 +316,10 @@ class EmployeeSheetService
         if ($r === 'admin') {
             return 'Administrator';
         }
-        if ($r === 'department') {
-            return 'Departemen';
+        if ($r === 'department' || $r === 'staff' || $r === '') {
+            return 'Staff';
         }
-        return $r !== '' ? ucfirst($r) : 'Staff';
+        return ucfirst($r);
     }
 
     /**
@@ -485,7 +493,7 @@ class EmployeeSheetService
                 $nameChanged = ($before['name'] !== $rawName || $before['staff_name'] !== $rawName);
                 $deptChanged = ($before['department'] !== $normalizedDept);
                 $subdivChanged = ((string) ($before['subdivision'] ?? '') !== (string) ($targetSubdivision ?? ''));
-                $roleChanged = ($before['role'] !== $role);
+                $roleChanged = (self::toSheetRole($before['role']) !== $role);
                 $activeChanged = ($before['is_active'] !== $targetActive || $trashChanged);
 
                 $hasDataChanges = $passwordChanged
@@ -674,7 +682,7 @@ class EmployeeSheetService
                     'target_subdiv'     => $targetSubdivision,
                     'target_phone'      => $targetPhone,
                     'target_email'      => $targetEmail,
-                    'role'              => $role,
+                    'role'              => $roleChanged ? $role : $before['role'],
                     'target_active'     => $targetActive,
                     'is_inactive'       => $isInactive,
                     'password_action'   => $passwordAction,
@@ -1215,7 +1223,7 @@ class EmployeeSheetService
             $phone = $user->whatsapp_number ?: '';
             $email = $user->email ?: '';
             $password = $user->password ?: ''; // Bcrypt hash string ($2y$...)
-            $role = $user->role ?: 'staff';
+            $role = self::toSheetRole($user->role);
             $subdiv = $user->subdivision ?: '';
             $status = ($user->trashed() || !$user->is_active) ? 'Nonaktif' : 'Aktif';
             $syncStatus = "Tersinkron ({$nowStr})";
@@ -1319,7 +1327,7 @@ class EmployeeSheetService
                 $user->whatsapp_number ?: '',
                 $user->email ?: '',
                 $user->password ?: '', // Bcrypt hash string ($2y$...)
-                $user->role ?: 'staff',
+                self::toSheetRole($user->role),
                 $user->subdivision ?: '',
                 ($user->trashed() || !$user->is_active) ? 'Nonaktif' : 'Aktif',
                 "Tersinkron ({$nowStr})",
