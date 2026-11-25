@@ -1744,41 +1744,111 @@ export function LeanAnalyticsView({
                     </p>
                 </div>
 
-                {/* KPI 2: Tiket Belum Selesai (Backlog) */}
-                <div className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden transition-all flex flex-col justify-between liquid-glass-card ${
-                    isDark ? 'border-slate-700/80' : 'border-slate-200'
-                }`}>
-                    <div>
-                        <div className="flex items-center justify-between">
-                            <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                {isEn ? 'Unresolved Tickets (Backlog)' : 'Tiket Belum Selesai (Backlog)'}
-                            </span>
-                            <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
-                                <Clock className="w-4 h-4" />
+                {/* KPI 2: Tiket Belum Selesai */}
+                {(() => {
+                    const canOpenActiveModal = performanceMetrics.oldestActiveList.length > 0;
+                    const openActiveTicketsModal = (initialFilter = 'all') => {
+                        if (!canOpenActiveModal) return;
+                        setPerfModalAgeFilter(initialFilter);
+                        setSelectedPerfModal({
+                            title: isEn ? 'Unresolved Active Issues' : 'Daftar Tiket Belum Selesai',
+                            subtitle: isEn
+                                ? `${performanceMetrics.oldestActiveList.length} unresolved tickets • ${performanceMetrics.activeOverdueEtaCount} no update >1h • ${performanceMetrics.activeOver7dCount} waiting > 7 days`
+                                : `${performanceMetrics.oldestActiveList.length} tiket belum selesai • ${performanceMetrics.activeOverdueEtaCount} tanpa update >1 jam • ${performanceMetrics.activeOver7dCount} tunggu > 7 hari`,
+                            accent: 'rose',
+                            enableAgeFilters: true,
+                            items: performanceMetrics.oldestActiveList.map((o) => ({
+                                issue: o.issue,
+                                ageMinutes: o.ageMinutes,
+                                isOverdueEta: o.isOverdueEta,
+                                durationLabel: `${isEn ? 'Waiting' : 'Menunggu'} ${formatDurationCompact(o.ageMinutes, isEn)}`,
+                            })),
+                        });
+                    };
+
+                    return (
+                        <div
+                            onClick={() => openActiveTicketsModal('all')}
+                            role={canOpenActiveModal ? 'button' : undefined}
+                            tabIndex={canOpenActiveModal ? 0 : undefined}
+                            onKeyDown={(e) => {
+                                if (canOpenActiveModal && (e.key === 'Enter' || e.key === ' ')) {
+                                    e.preventDefault();
+                                    openActiveTicketsModal('all');
+                                }
+                            }}
+                            title={
+                                canOpenActiveModal
+                                    ? (isEn ? 'Click to view all unresolved tickets' : 'Klik untuk melihat seluruh tiket yang belum selesai')
+                                    : undefined
+                            }
+                            className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden transition-all flex flex-col justify-between liquid-glass-card ${
+                                isDark
+                                    ? `border-slate-700/80 ${canOpenActiveModal ? 'hover:border-rose-500/50 cursor-pointer' : ''}`
+                                    : `border-slate-200 ${canOpenActiveModal ? 'hover:border-rose-400 cursor-pointer' : ''}`
+                            }`}
+                        >
+                            <div>
+                                <div className="flex items-center justify-between">
+                                    <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                        {isEn ? 'Unresolved Tickets' : 'Tiket Belum Selesai'}
+                                    </span>
+                                    <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
+                                        <Clock className="w-4 h-4" />
+                                    </div>
+                                </div>
+                                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                    <span className={`text-2xl font-black ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>
+                                        {stats.activeCount}
+                                    </span>
+                                    <span
+                                        title={
+                                            isEn
+                                                ? `${stats.activeCount} of ${stats.total} total tickets in this period are still unresolved (${stats.activeRatio}%).`
+                                                : `${stats.activeCount} dari ${stats.total} total tiket pada periode ini belum selesai (${stats.activeRatio}%).`
+                                        }
+                                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                            isDark ? 'bg-rose-950/80 border-rose-800/60 text-rose-300' : 'bg-rose-100 border-rose-300 text-rose-800'
+                                        }`}
+                                    >
+                                        {stats.activeRatio}% {isEn ? 'of total' : 'dari total'}
+                                    </span>
+                                    {stats.overdueActiveCount > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openActiveTicketsModal('overdue_eta');
+                                            }}
+                                            title={
+                                                isEn
+                                                    ? `${stats.overdueActiveCount} active tickets have no progress update for >1 hour (escalated to Supervisor) or >3 hours (escalated to Owner). Click to inspect.`
+                                                    : `${stats.overdueActiveCount} tiket aktif belum mendapat update progres >1 jam (eskalasi Supervisor) atau >3 jam (eskalasi Owner). Klik untuk lihat daftarnya.`
+                                            }
+                                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
+                                                isDark
+                                                    ? 'bg-rose-950/90 border-rose-600/70 text-rose-200 hover:bg-rose-900'
+                                                    : 'bg-rose-50 border-rose-400 text-rose-700 hover:bg-rose-100'
+                                            }`}
+                                        >
+                                            {stats.overdueActiveCount} {isEn ? 'no update >1h' : 'tanpa update >1 jam'}
+                                        </button>
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                        <div className="mt-2 flex items-baseline gap-2 flex-wrap">
-                            <span className={`text-2xl font-black ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>
-                                {stats.activeCount}
-                            </span>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                                isDark ? 'bg-rose-950/80 border-rose-800/60 text-rose-300' : 'bg-rose-100 border-rose-300 text-rose-800'
-                            }`}>
-                                {stats.activeRatio}% Backlog
-                            </span>
-                            {stats.overdueActiveCount > 0 && (
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                                    isDark ? 'bg-rose-950/90 border-rose-600/60 text-rose-300' : 'bg-rose-50 border-rose-400 text-rose-700'
-                                }`}>
-                                    {stats.overdueActiveCount} {isEn ? 'Escalated (1h/3h+)' : 'Eskalasi (1j/3j+)'}
+                            <p className={`text-[11px] mt-2 flex items-center justify-between gap-2 flex-wrap ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                <span>
+                                    Open: <strong className={isDark ? 'text-rose-400' : 'text-rose-600'}>{stats.openCount}</strong> • Progress: <strong className={isDark ? 'text-sky-400' : 'text-sky-600'}>{stats.inProgressCount}</strong> • {isEn ? 'Pending' : 'Tertunda'}: <strong className={isDark ? 'text-amber-400' : 'text-amber-600'}>{stats.pendingCount}</strong>
                                 </span>
-                            )}
+                                {canOpenActiveModal && (
+                                    <span className={`text-[10px] font-semibold ${isDark ? 'text-rose-400/80' : 'text-rose-600/80'}`}>
+                                        {isEn ? 'Click details' : 'Klik rincian'}
+                                    </span>
+                                )}
+                            </p>
                         </div>
-                    </div>
-                    <p className={`text-[11px] mt-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                        Open: <strong className={isDark ? 'text-rose-400' : 'text-rose-600'}>{stats.openCount}</strong> • Progress: <strong className={isDark ? 'text-sky-400' : 'text-sky-600'}>{stats.inProgressCount}</strong> • {isEn ? 'Pending' : 'Tertunda'}: <strong className={isDark ? 'text-amber-400' : 'text-amber-600'}>{stats.pendingCount}</strong>
-                    </p>
-                </div>
+                    );
+                })()}
 
                 {/* KPI 3: Departemen Terbanyak (Customizable 3 Modes Inside Card) */}
                 {(() => {
@@ -2828,7 +2898,7 @@ export function LeanAnalyticsView({
                                 },
                                 {
                                     key: 'overdue_eta',
-                                    label: isEn ? 'Escalated (1h/3h+)' : 'Eskalasi 1j/3j+',
+                                    label: isEn ? 'No Update >1h' : 'Tanpa Update >1 Jam',
                                     count: allItems.filter((i) => i.isOverdueEta).length,
                                 },
                                 {
