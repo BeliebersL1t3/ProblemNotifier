@@ -213,7 +213,7 @@ class EmployeeSheetService
             throw new \RuntimeException('Spreadsheet ID belum dikonfigurasi. Hubungkan spreadsheet terlebih dahulu.');
         }
 
-        $cacheKey = "employee_sheet_header_ready_v3:{$this->spreadsheetId}";
+        $cacheKey = "employee_sheet_header_ready_v4:{$this->spreadsheetId}";
         if (!$forceRefresh) {
             $cachedTitle = Cache::get($cacheKey);
             if (is_string($cachedTitle) && $cachedTitle !== '') {
@@ -340,12 +340,36 @@ class EmployeeSheetService
             ],
         ]);
 
+        // Enforce strict dropdown validation ('Aktif' / 'Nonaktif') on Column H (Status Akun) from Row 2 onward
+        $statusValidationReq = new Request([
+            'setDataValidation' => [
+                'range' => [
+                    'sheetId'          => $targetGid,
+                    'startRowIndex'    => 1, // Row 2 onward
+                    'startColumnIndex' => 7, // Column H (0-indexed)
+                    'endColumnIndex'   => 8,
+                ],
+                'rule' => [
+                    'condition' => [
+                        'type'   => 'ONE_OF_LIST',
+                        'values' => [
+                            ['userEnteredValue' => 'Aktif'],
+                            ['userEnteredValue' => 'Nonaktif'],
+                        ],
+                    ],
+                    'inputMessage' => 'Pilih status akun: Aktif atau Nonaktif',
+                    'strict'       => true,
+                    'showCustomUi' => true,
+                ],
+            ],
+        ]);
+
         try {
             $service->spreadsheets->batchUpdate($this->spreadsheetId, new BatchUpdateSpreadsheetRequest([
-                'requests' => [$formatReq, $roleValidationReq],
+                'requests' => [$formatReq, $roleValidationReq, $statusValidationReq],
             ]));
         } catch (\Throwable $e) {
-            Log::warning('EmployeeSheetService header format & role validation warning: ' . $e->getMessage());
+            Log::warning('EmployeeSheetService header format & column validations warning: ' . $e->getMessage());
         }
 
         Cache::put($cacheKey, $targetTitle, now()->addHours(24));
@@ -1229,7 +1253,7 @@ class EmployeeSheetService
                     ],
                     null,
                     null,
-                    null,
+                    "Seluruh Karyawan (Baru: {$created}, Diubah: {$updated}, Tetap: {$skipped})",
                     false
                 );
             } catch (\Throwable $e) {
@@ -1367,7 +1391,10 @@ class EmployeeSheetService
                     [
                         'count'          => count($rows),
                         'spreadsheet_id' => $this->spreadsheetId,
-                    ]
+                    ],
+                    null,
+                    null,
+                    'Seluruh Karyawan (' . count($rows) . ' akun)'
                 );
             } catch (\Throwable $e) {
                 Log::warning('EmployeeSheetService: Failed recording export audit log: ' . $e->getMessage());

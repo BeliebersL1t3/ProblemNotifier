@@ -741,26 +741,45 @@ class EmployeeSheetSyncTest extends TestCase
         $exportRes = $service->exportAllEmployeesToSheet();
         $this->assertTrue($exportRes['success']);
 
-        // Verify Column F dropdown validation ('staff' / 'admin') was configured via batchUpdate
-        $validationReq = null;
+        // Verify Column F dropdown validation ('staff' / 'admin') and Column H ('Aktif' / 'Nonaktif') were configured via batchUpdate
+        $roleValidationReq = null;
+        $statusValidationReq = null;
         foreach ($capturedBatchRequests as $req) {
-            if ($req->getSetDataValidation() !== null) {
-                $validationReq = $req->getSetDataValidation();
-                break;
+            $dv = $req->getSetDataValidation();
+            if ($dv !== null) {
+                $colIdx = $dv->getRange()->getStartColumnIndex();
+                if ($colIdx === 5) {
+                    $roleValidationReq = $dv;
+                } elseif ($colIdx === 7) {
+                    $statusValidationReq = $dv;
+                }
             }
         }
-        $this->assertNotNull($validationReq);
-        $this->assertEquals(1, $validationReq->getRange()->getStartRowIndex());
-        $this->assertEquals(5, $validationReq->getRange()->getStartColumnIndex());
-        $this->assertEquals(6, $validationReq->getRange()->getEndColumnIndex());
-        $this->assertEquals('ONE_OF_LIST', $validationReq->getRule()->getCondition()->getType());
-        $this->assertTrue($validationReq->getRule()->getStrict());
-        $this->assertTrue($validationReq->getRule()->getShowCustomUi());
+        $this->assertNotNull($roleValidationReq);
+        $this->assertEquals(1, $roleValidationReq->getRange()->getStartRowIndex());
+        $this->assertEquals(5, $roleValidationReq->getRange()->getStartColumnIndex());
+        $this->assertEquals(6, $roleValidationReq->getRange()->getEndColumnIndex());
+        $this->assertEquals('ONE_OF_LIST', $roleValidationReq->getRule()->getCondition()->getType());
+        $this->assertTrue($roleValidationReq->getRule()->getStrict());
+        $this->assertTrue($roleValidationReq->getRule()->getShowCustomUi());
         $allowedRoleValues = array_map(
             fn ($v) => $v->getUserEnteredValue(),
-            $validationReq->getRule()->getCondition()->getValues()
+            $roleValidationReq->getRule()->getCondition()->getValues()
         );
         $this->assertEquals(['staff', 'admin'], $allowedRoleValues);
+
+        $this->assertNotNull($statusValidationReq);
+        $this->assertEquals(1, $statusValidationReq->getRange()->getStartRowIndex());
+        $this->assertEquals(7, $statusValidationReq->getRange()->getStartColumnIndex());
+        $this->assertEquals(8, $statusValidationReq->getRange()->getEndColumnIndex());
+        $this->assertEquals('ONE_OF_LIST', $statusValidationReq->getRule()->getCondition()->getType());
+        $this->assertTrue($statusValidationReq->getRule()->getStrict());
+        $this->assertTrue($statusValidationReq->getRule()->getShowCustomUi());
+        $allowedStatusValues = array_map(
+            fn ($v) => $v->getUserEnteredValue(),
+            $statusValidationReq->getRule()->getCondition()->getValues()
+        );
+        $this->assertEquals(['Aktif', 'Nonaktif'], $allowedStatusValues);
 
         $rolesByEmail = [];
         $rowsByEmail = [];

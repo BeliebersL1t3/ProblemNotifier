@@ -169,8 +169,78 @@ export function AuditTrailTab() {
         };
     }, [logs, totalCount]);
 
+    const getDisplayTargetName = (log) => {
+        const raw = (log?.target_user_name || '').trim();
+        if (raw && raw !== 'N/A' && raw !== '-') {
+            return raw;
+        }
+        const c = log?.changes || {};
+        if (log?.action === 'EMPLOYEES_EXPORTED_TO_SHEET') {
+            return c.count !== undefined
+                ? `Seluruh Karyawan (${c.count} akun)`
+                : 'Seluruh Karyawan (Spreadsheet)';
+        }
+        if (log?.action === 'BATCH_USERS_SYNCED_FROM_SHEET') {
+            return 'Seluruh Karyawan (Spreadsheet)';
+        }
+        if (c.account_count !== undefined) {
+            return `${c.account_count} Akun Karyawan`;
+        }
+        return 'Operasi Sistem / Massal';
+    };
+
     const renderInlineDiffSummary = (log) => {
         if (!log?.changes) return null;
+
+        // Compact summary pills for batch Sheet Sync / Export logs
+        if (log.action === 'BATCH_USERS_SYNCED_FROM_SHEET') {
+            const c = log.changes || {};
+            const created = c.created_count ?? 0;
+            const updated = c.updated_count ?? 0;
+            const skipped = c.skipped_count ?? 0;
+            const hashed = c.hashed_passwords ?? 0;
+            const errs = c.errors_count ?? 0;
+            return (
+                <div className="flex flex-wrap items-center gap-1 mt-1">
+                    {created > 0 && (
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${isDark ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                            Baru: {created}
+                        </span>
+                    )}
+                    {updated > 0 && (
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${isDark ? 'bg-sky-500/15 text-sky-300 border-sky-500/30' : 'bg-sky-50 text-sky-700 border-sky-200'}`}>
+                            Diubah: {updated}
+                        </span>
+                    )}
+                    {hashed > 0 && (
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${isDark ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                            Hash: {hashed}
+                        </span>
+                    )}
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${isDark ? 'bg-slate-800/80 text-slate-300 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                        {created === 0 && updated === 0 && hashed === 0
+                            ? `${skipped} data sesuai (tanpa perubahan)`
+                            : `Tetap: ${skipped}`}
+                    </span>
+                    {errs > 0 && (
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${isDark ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-rose-100 text-rose-700 border-rose-300'}`}>
+                            Galat: {errs}
+                        </span>
+                    )}
+                </div>
+            );
+        }
+
+        if (log.action === 'EMPLOYEES_EXPORTED_TO_SHEET') {
+            const count = log.changes?.count;
+            return (
+                <div className="flex flex-wrap items-center gap-1 mt-1">
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${isDark ? 'bg-teal-500/15 text-teal-300 border-teal-500/30' : 'bg-teal-50 text-teal-700 border-teal-200'}`}>
+                        {count !== undefined ? `${count} data dikirim ke Google Sheet` : 'Data dikirim ke Google Sheet'}
+                    </span>
+                </div>
+            );
+        }
 
         // Highlight newly created Admin accounts immediately
         if (['USER_CREATED', 'USER_CREATED_VIA_SHEET_SYNC'].includes(log.action) && log.changes?.created_user) {
@@ -694,7 +764,7 @@ export function AuditTrailTab() {
                                                     {getActionBadge(log)}
                                                 </td>
                                                 <td className={`py-3.5 px-4 font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                                    <div>{log.target_user_name || '-'}</div>
+                                                    <div>{getDisplayTargetName(log)}</div>
                                                     {renderInlineDiffSummary(log)}
                                                 </td>
                                                 <td className={`py-3.5 px-4 ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
@@ -786,7 +856,7 @@ export function AuditTrailTab() {
                                                 <div className="space-y-1">
                                                     {getActionBadge(log)}
                                                     <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                                        {log.target_user_name}
+                                                        {getDisplayTargetName(log)}
                                                     </div>
                                                     {renderInlineDiffSummary(log)}
                                                     <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
