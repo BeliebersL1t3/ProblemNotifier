@@ -13,6 +13,7 @@ use Google\Service\Sheets\BatchUpdateSpreadsheetRequest;
 use Google\Service\Sheets\BatchUpdateValuesRequest;
 use Google\Service\Sheets\Request;
 use Google\Service\Sheets\ValueRange;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
@@ -141,12 +142,20 @@ class EmployeeSheetService
     }
 
     /**
-     * Ensure the target tab exists and headers are styled.
+     * Ensure the target tab exists and headers are styled (cached 24h per spreadsheet ID to avoid 3 extra API calls per sync/edit).
      */
-    public function ensureSheetAndHeaders(): string
+    public function ensureSheetAndHeaders(bool $forceRefresh = false): string
     {
         if (!$this->spreadsheetId) {
             throw new \RuntimeException('Spreadsheet ID belum dikonfigurasi. Hubungkan spreadsheet terlebih dahulu.');
+        }
+
+        $cacheKey = "employee_sheet_header_ready:{$this->spreadsheetId}";
+        if (!$forceRefresh) {
+            $cachedTitle = Cache::get($cacheKey);
+            if (is_string($cachedTitle) && $cachedTitle !== '') {
+                return $cachedTitle;
+            }
         }
 
         $service = $this->getSheetsService();
@@ -252,6 +261,8 @@ class EmployeeSheetService
             Log::warning('EmployeeSheetService header format warning: ' . $e->getMessage());
         }
 
+        Cache::put($cacheKey, $targetTitle, now()->addHours(24));
+
         return $targetTitle;
     }
 
@@ -307,6 +318,26 @@ class EmployeeSheetService
         $skipped = 0;
         $errors = [];
         $updatesToSheet = []; // Array of ['range' => '...', 'values' => [[...]]]
+        $pendingAuditLogs = []; // Collected for a single non-blocking batch append to Audit Sheet
+
+        // Preload all users in 1 DB query to eliminate N+1 per-row queries
+        $allUsers = User::withTrashed()->get();
+        $usersByEmail = [];
+        $usersByPhone = [];
+        $usersByName = [];
+        foreach ($allUsers as $u) {
+            if (!empty($u->email)) {
+                $usersByEmail[strtolower(trim((string) $u->email))] = $u;
+            }
+            $uPhone = self::normalizePhoneNumber($u->whatsapp_number);
+            if ($uPhone) {
+                $usersByPhone[$uPhone] = $u;
+            }
+            $uName = strtolower(trim((string) ($u->staff_name ?: $u->name)));
+            if ($uName !== '') {
+                $usersByName[$uName] = $u;
+            }
+        }
 
         $nowStr = Carbon::now('Asia/Jakarta')->format('d/m/Y H:i');
 
@@ -321,6 +352,7 @@ class EmployeeSheetService
             $rawRole        = strtolower(trim($row[5] ?? 'staff'));
             $rawSubdivision = trim($row[6] ?? '');
             $rawStatus      = strtolower(trim($row[7] ?? 'aktif'));
+            $rawSyncStatus  = trim($row[8] ?? '');
 
             // Empty row check
             if ($rawName === '' && $rawPhone === '' && $rawEmail === '') {
@@ -370,16 +402,16 @@ class EmployeeSheetService
                 $email = "{$safeNameSlug}@telunas.internal";
             }
 
-            // Locate existing user (by email or whatsapp_number or staff_name)
+            // Locate existing user from preloaded in-memory maps (O(1) lookup, 0 DB queries)
             $existingUser = null;
             if (!empty($rawEmail)) {
-                $existingUser = User::withTrashed()->where('email', $rawEmail)->first();
+                $existingUser = $usersByEmail[strtolower($rawEmail)] ?? null;
             }
             if (!$existingUser && !empty($normalizedPhone)) {
-                $existingUser = User::withTrashed()->where('whatsapp_number', $normalizedPhone)->first();
+                $existingUser = $usersByPhone[$normalizedPhone] ?? null;
             }
             if (!$existingUser) {
-                $existingUser = User::withTrashed()->where('staff_name', $rawName)->first();
+                $existingUser = $usersByName[strtolower($rawName)] ?? null;
             }
 
             // Password & Bcrypt Handling (Option B)
@@ -417,28 +449,51 @@ class EmployeeSheetService
                         'department'      => $existingUser->department,
                         'subdivision'     => $existingUser->subdivision,
                         'whatsapp_number' => $existingUser->whatsapp_number,
-                        'is_active'       => $existingUser->is_active,
+                        'is_active'       => (bool) $existingUser->is_active,
                     ];
                     $passwordChanged = !empty($passwordForDb);
+
+                    $targetSubdivision = $rawSubdivision !== '' ? $rawSubdivision : $existingUser->subdivision;
+                    $targetPhone = $normalizedPhone ?: $existingUser->whatsapp_number;
+                    $targetEmail = !empty($rawEmail) ? $rawEmail : $existingUser->email;
+                    $targetActive = !$isInactive;
+                    $trashChanged = ($isInactive && !$existingUser->trashed()) || (!$isInactive && $existingUser->trashed());
+
+                    $hasDataChanges = $passwordChanged
+                        || $trashChanged
+                        || $before['name'] !== $rawName
+                        || $before['staff_name'] !== $rawName
+                        || $before['department'] !== $normalizedDept
+                        || $before['subdivision'] !== $targetSubdivision
+                        || self::normalizePhoneNumber($before['whatsapp_number']) !== self::normalizePhoneNumber($targetPhone)
+                        || strtolower((string) $before['email']) !== strtolower((string) $targetEmail)
+                        || $before['role'] !== $role
+                        || $before['is_active'] !== $targetActive;
+
+                    // Smart Dirty Check: Skip DB save, audit log, and sheet write-back for unchanged rows!
+                    if (!$hasDataChanges && !$newHashToWriteBack) {
+                        if (!str_starts_with($rawSyncStatus, 'Tersinkron')) {
+                            $updatesToSheet[] = [
+                                'range'  => "{$tabName}!I{$rowNumber}",
+                                'values' => [["Tersinkron ({$nowStr})"]],
+                            ];
+                        }
+                        $skipped++;
+                        continue;
+                    }
 
                     // Update existing user
                     $existingUser->name = $rawName;
                     $existingUser->staff_name = $rawName;
                     $existingUser->department = $normalizedDept;
-                    if ($rawSubdivision !== '') {
-                        $existingUser->subdivision = $rawSubdivision;
-                    }
-                    if ($normalizedPhone) {
-                        $existingUser->whatsapp_number = $normalizedPhone;
-                    }
-                    if (!empty($rawEmail)) {
-                        $existingUser->email = $rawEmail;
-                    }
+                    $existingUser->subdivision = $targetSubdivision;
+                    $existingUser->whatsapp_number = $targetPhone;
+                    $existingUser->email = $targetEmail;
                     if ($passwordForDb) {
                         $existingUser->password = $passwordForDb;
                     }
                     $existingUser->role = $role;
-                    $existingUser->is_active = !$isInactive;
+                    $existingUser->is_active = $targetActive;
 
                     if ($isInactive && !$existingUser->trashed()) {
                         $existingUser->delete();
@@ -449,6 +504,15 @@ class EmployeeSheetService
                     $existingUser->save();
                     $updated++;
 
+                    // Refresh in-memory maps
+                    if (!empty($existingUser->email)) {
+                        $usersByEmail[strtolower(trim((string) $existingUser->email))] = $existingUser;
+                    }
+                    if ($targetPhone) {
+                        $usersByPhone[self::normalizePhoneNumber($targetPhone)] = $existingUser;
+                    }
+                    $usersByName[strtolower($rawName)] = $existingUser;
+
                     $after = [
                         'name'            => $existingUser->name,
                         'staff_name'      => $existingUser->staff_name,
@@ -457,48 +521,28 @@ class EmployeeSheetService
                         'department'      => $existingUser->department,
                         'subdivision'     => $existingUser->subdivision,
                         'whatsapp_number' => $existingUser->whatsapp_number,
-                        'is_active'       => $existingUser->is_active,
+                        'is_active'       => (bool) $existingUser->is_active,
                         'password_reset'  => $passwordChanged,
                     ];
 
                     if ($actingAdmin) {
                         try {
-                            if ($passwordChanged) {
-                                UserAuditLog::record(
-                                    $actingAdmin,
-                                    $existingUser,
-                                    'PASSWORD_UPDATED_VIA_SHEET_SYNC',
-                                    [
-                                        'source'         => 'Google Spreadsheet (Data Karyawan)',
-                                        'spreadsheet_id' => $this->spreadsheetId,
-                                        'row'            => $rowNumber,
-                                        'before'         => $before,
-                                        'after'          => $after,
-                                    ]
-                                );
-                            } elseif (
-                                $before['name'] !== $after['name'] ||
-                                $before['staff_name'] !== $after['staff_name'] ||
-                                $before['department'] !== $after['department'] ||
-                                $before['role'] !== $after['role'] ||
-                                $before['whatsapp_number'] !== $after['whatsapp_number'] ||
-                                $before['subdivision'] !== $after['subdivision'] ||
-                                $before['email'] !== $after['email'] ||
-                                $before['is_active'] !== $after['is_active']
-                            ) {
-                                UserAuditLog::record(
-                                    $actingAdmin,
-                                    $existingUser,
-                                    'USER_UPDATED_VIA_SHEET_SYNC',
-                                    [
-                                        'source'         => 'Google Spreadsheet (Data Karyawan)',
-                                        'spreadsheet_id' => $this->spreadsheetId,
-                                        'row'            => $rowNumber,
-                                        'before'         => $before,
-                                        'after'          => $after,
-                                    ]
-                                );
-                            }
+                            $pendingAuditLogs[] = UserAuditLog::record(
+                                $actingAdmin,
+                                $existingUser,
+                                $passwordChanged ? 'PASSWORD_UPDATED_VIA_SHEET_SYNC' : 'USER_UPDATED_VIA_SHEET_SYNC',
+                                [
+                                    'source'         => 'Google Spreadsheet (Data Karyawan)',
+                                    'spreadsheet_id' => $this->spreadsheetId,
+                                    'row'            => $rowNumber,
+                                    'before'         => $before,
+                                    'after'          => $after,
+                                ],
+                                null,
+                                null,
+                                null,
+                                false
+                            );
                         } catch (\Throwable $logEx) {
                             Log::warning("EmployeeSheetService: Failed recording audit log for updated user {$existingUser->id}: " . $logEx->getMessage());
                         }
@@ -521,9 +565,18 @@ class EmployeeSheetService
                     $newUser->save();
                     $created++;
 
+                    // Register in-memory maps
+                    if (!empty($newUser->email)) {
+                        $usersByEmail[strtolower(trim((string) $newUser->email))] = $newUser;
+                    }
+                    if ($normalizedPhone) {
+                        $usersByPhone[$normalizedPhone] = $newUser;
+                    }
+                    $usersByName[strtolower($rawName)] = $newUser;
+
                     if ($actingAdmin) {
                         try {
-                            UserAuditLog::record(
+                            $pendingAuditLogs[] = UserAuditLog::record(
                                 $actingAdmin,
                                 $newUser,
                                 'USER_CREATED_VIA_SHEET_SYNC',
@@ -540,7 +593,11 @@ class EmployeeSheetService
                                         'whatsapp_number' => $newUser->whatsapp_number,
                                         'permissions'     => $newUser->permissions,
                                     ],
-                                ]
+                                ],
+                                null,
+                                null,
+                                null,
+                                false
                             );
                         } catch (\Throwable $logEx) {
                             Log::warning("EmployeeSheetService: Failed recording audit log for new user {$newUser->id}: " . $logEx->getMessage());
@@ -571,7 +628,7 @@ class EmployeeSheetService
             }
         }
 
-        // Batch update Google Spreadsheet (Column E and Column I)
+        // Batch update Google Spreadsheet (only modified/new/errored rows: Column E and Column I)
         if (!empty($updatesToSheet)) {
             try {
                 $batchData = [];
@@ -592,13 +649,10 @@ class EmployeeSheetService
             }
         }
 
-        // Trigger WhatsApp bot roster refresh
-        $this->syncStaffWithBot();
-
-        // Record UserAuditLog entry
+        // Record batch summary UserAuditLog entry (without blocking Google Sheets)
         if ($actingAdmin) {
             try {
-                UserAuditLog::record(
+                $pendingAuditLogs[] = UserAuditLog::record(
                     $actingAdmin,
                     null,
                     'BATCH_USERS_SYNCED_FROM_SHEET',
@@ -606,15 +660,35 @@ class EmployeeSheetService
                         'batch'            => true,
                         'created_count'    => $created,
                         'updated_count'    => $updated,
+                        'skipped_count'    => $skipped,
                         'hashed_passwords' => $hashedCount,
                         'errors_count'     => count($errors),
                         'spreadsheet_id'   => $this->spreadsheetId,
-                    ]
+                    ],
+                    null,
+                    null,
+                    null,
+                    false
                 );
             } catch (\Throwable $e) {
                 Log::warning('Failed recording UserAuditLog for employee sync: ' . $e->getMessage());
             }
         }
+
+        // Dispatch Audit Sheet batch append & WhatsApp bot roster refresh in background (non-blocking)
+        $hasRosterChanges = ($created > 0 || $updated > 0);
+        dispatch(function () use ($pendingAuditLogs, $hasRosterChanges) {
+            if (!empty($pendingAuditLogs)) {
+                try {
+                    app(AuditSheetService::class)->appendLogsBatch($pendingAuditLogs);
+                } catch (\Throwable $e) {
+                    Log::warning('EmployeeSheetService: Background batch audit sheet append failed: ' . $e->getMessage());
+                }
+            }
+            if ($hasRosterChanges) {
+                $this->syncStaffWithBot();
+            }
+        })->afterResponse();
 
         return [
             'success'          => count($errors) === 0 || ($created > 0 || $updated > 0),

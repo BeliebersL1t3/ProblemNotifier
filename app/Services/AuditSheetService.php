@@ -10,6 +10,7 @@ use Google\Service\Sheets\BatchUpdateSpreadsheetRequest;
 use Google\Service\Sheets\ClearValuesRequest;
 use Google\Service\Sheets\Request;
 use Google\Service\Sheets\ValueRange;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class AuditSheetService
@@ -234,12 +235,20 @@ class AuditSheetService
      */
     public function ensureSheetExists(string $sheetTitle): int
     {
+        $cacheKey = "audit_sheet_tab:{$this->spreadsheetId}:{$sheetTitle}";
+        $cachedSheetId = Cache::get($cacheKey);
+        if ($cachedSheetId !== null) {
+            $this->sheetCache[$sheetTitle] = (int) $cachedSheetId;
+            return (int) $cachedSheetId;
+        }
+
         if (empty($this->sheetCache)) {
             $this->getSpreadsheetSheets();
         }
 
-        // 1. If tab already exists, return its sheetId
+        // 1. If tab already exists, cache and return its sheetId
         if (isset($this->sheetCache[$sheetTitle])) {
+            Cache::put($cacheKey, (int) $this->sheetCache[$sheetTitle], now()->addHours(12));
             return $this->sheetCache[$sheetTitle];
         }
 
@@ -508,6 +517,45 @@ class AuditSheetService
             return true;
         } catch (\Throwable $e) {
             Log::warning("AuditSheetService: failed to append log #{$log->id} to '{$sheetTitle}': " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Batch append multiple audit logs in a single Google Sheets API call per monthly tab.
+     *
+     * @param array<int, UserAuditLog> $logs
+     */
+    public function appendLogsBatch(array $logs): bool
+    {
+        if (empty($logs)) {
+            return true;
+        }
+
+        try {
+            $service = $this->getSheetsService();
+            $groupedRows = [];
+
+            foreach ($logs as $log) {
+                if (!$log instanceof UserAuditLog) {
+                    continue;
+                }
+                $sheetTitle = self::getSheetTitleForDate($log->created_at ? (string) $log->created_at : null);
+                $groupedRows[$sheetTitle][] = self::formatRow($log);
+            }
+
+            foreach ($groupedRows as $sheetTitle => $rowsToAppend) {
+                $this->ensureSheetExists($sheetTitle);
+                $valueRange = new ValueRange(['values' => $rowsToAppend]);
+                $service->spreadsheets_values->append($this->spreadsheetId, "'{$sheetTitle}'!A:G", $valueRange, [
+                    'valueInputOption' => 'USER_ENTERED',
+                    'insertDataOption' => 'INSERT_ROWS',
+                ]);
+            }
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning('AuditSheetService: failed to batch append ' . count($logs) . ' audit logs: ' . $e->getMessage());
             return false;
         }
     }

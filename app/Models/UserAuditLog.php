@@ -47,27 +47,34 @@ class UserAuditLog extends Model
         array $changes = [],
         ?string $ipAddress = null,
         ?string $userAgent = null,
-        ?string $customTargetName = null
+        ?string $customTargetName = null,
+        bool $syncSheet = true
     ): self {
-            $rawIp = $ipAddress ?? request()?->ip();
-            $normalizedIp = ($rawIp === '::1') ? '127.0.0.1' : $rawIp;
-            $targetName = $customTargetName ?? ($targetUser?->staff_name ?: ($targetUser?->name ?: 'N/A'));
+        $rawIp = $ipAddress ?? request()?->ip();
+        $normalizedIp = ($rawIp === '::1') ? '127.0.0.1' : $rawIp;
+        $targetName = $customTargetName ?? ($targetUser?->staff_name ?: ($targetUser?->name ?: 'N/A'));
 
-            $log = self::create([
-                'admin_id'         => $admin?->id,
-                'admin_name'       => $admin?->staff_name ?: ($admin?->name ?: 'System'),
-                'target_user_id'   => $targetUser?->id,
-                'target_user_name' => $targetName,
-                'action'           => $action,
-                'changes'          => $changes,
-                'ip_address'       => $normalizedIp,
-                'user_agent'       => $userAgent ?? request()?->userAgent(),
-            ]);
+        $log = self::create([
+            'admin_id'         => $admin?->id,
+            'admin_name'       => $admin?->staff_name ?: ($admin?->name ?: 'System'),
+            'target_user_id'   => $targetUser?->id,
+            'target_user_name' => $targetName,
+            'action'           => $action,
+            'changes'          => $changes,
+            'ip_address'       => $normalizedIp,
+            'user_agent'       => $userAgent ?? request()?->userAgent(),
+        ]);
 
-        try {
-            app(\App\Services\AuditSheetService::class)->appendLog($log);
-        } catch (\Throwable $e) {
-            // Silently handled without interrupting main transaction
+        if ($syncSheet) {
+            dispatch(function () use ($log) {
+                try {
+                    app(\App\Services\AuditSheetService::class)->appendLog($log);
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning(
+                        "UserAuditLog: failed syncing audit log #{$log->id} to Google Sheet: " . $e->getMessage()
+                    );
+                }
+            })->afterResponse();
         }
 
         return $log;

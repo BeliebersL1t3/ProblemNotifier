@@ -275,18 +275,7 @@ class UserController extends Controller
             'permissions'     => $permissions,
         ]);
 
-        if (!empty($cleanPhone)) {
-            $this->syncStaffWithBot();
-        }
-
-        // Real-time sync new employee to Google Spreadsheet master
-        try {
-            app(\App\Services\EmployeeSheetService::class)->syncSingleEmployeeToSheet($user);
-        } catch (\Throwable $sheetEx) {
-            \Illuminate\Support\Facades\Log::warning("UserController@store: Auto-sync user #{$user->id} to Google Sheet failed: " . $sheetEx->getMessage());
-        }
-
-        // Audit log
+        // Audit log (DB immediate, Google Audit Sheet async afterResponse)
         UserAuditLog::record(
             auth()->user(),
             $user,
@@ -297,16 +286,33 @@ class UserController extends Controller
                     'email'       => $user->email,
                     'role'        => $user->role,
                     'department'  => $user->department,
-                    'is_hod'      => false,
+                    'is_hod'      => (bool) $user->is_hod,
                     'permissions' => $permissions,
                 ]
             ]
         );
 
-        // Dispatch credentials via WhatsApp DM, or fallback to email
-        if (!empty($validated['password'])) {
-            $this->dispatchUserCredentials($user, $validated['password'], true);
-        }
+        // Background sync to WhatsApp Bot, Google Spreadsheet master, and credential dispatch
+        $rawPassword = $validated['password'] ?? '';
+        dispatch(function () use ($user, $cleanPhone, $rawPassword) {
+            if (!empty($cleanPhone)) {
+                $this->syncStaffWithBot();
+            }
+
+            try {
+                app(\App\Services\EmployeeSheetService::class)->syncSingleEmployeeToSheet($user);
+            } catch (\Throwable $sheetEx) {
+                \Illuminate\Support\Facades\Log::warning("UserController@store: Auto-sync user #{$user->id} to Google Sheet failed: " . $sheetEx->getMessage());
+            }
+
+            if (!empty($rawPassword)) {
+                try {
+                    $this->dispatchUserCredentials($user, $rawPassword, true);
+                } catch (\Throwable $credEx) {
+                    \Illuminate\Support\Facades\Log::warning("UserController@store: Credential dispatch for user #{$user->id} failed: " . $credEx->getMessage());
+                }
+            }
+        })->afterResponse();
 
         return response()->json([
             'success' => true,
@@ -465,27 +471,9 @@ class UserController extends Controller
 
         $user->save();
 
-        // Dispatch updated credentials via WhatsApp DM, or fallback to email
-        if ($passwordChanged && !empty($validated['password'])) {
-            $this->dispatchUserCredentials($user, $validated['password'], false);
-        }
-
-        // If department was changed, notify HOD of old department if this staff has active claimed issues needing reassignment
         $oldDepartment = $before['department'] ?? null;
         $newDepartment = $user->department ?? null;
-        if (!empty($oldDepartment) && !empty($newDepartment) && strcasecmp($oldDepartment, $newDepartment) !== 0) {
-            $this->notifyHodOfTransferredStaffActiveIssues($user, $oldDepartment, $newDepartment);
-        }
-
-        // Notify WhatsApp bot to sync staff memory in real-time
-        $this->syncStaffWithBot();
-
-        // Real-time sync employee updates (e.g. password, role, dept) to Google Spreadsheet master
-        try {
-            app(\App\Services\EmployeeSheetService::class)->syncSingleEmployeeToSheet($user);
-        } catch (\Throwable $sheetEx) {
-            \Illuminate\Support\Facades\Log::warning("UserController@update: Auto-sync user #{$user->id} to Google Sheet failed: " . $sheetEx->getMessage());
-        }
+        $rawPassword = $validated['password'] ?? '';
 
         $after = [
             'name'            => $user->name,
@@ -502,7 +490,7 @@ class UserController extends Controller
             'password_reset'  => $passwordChanged,
         ];
 
-        // Audit log
+        // Audit log (DB immediate, Google Audit Sheet async afterResponse)
         UserAuditLog::record(
             auth()->user(),
             $user,
@@ -512,6 +500,33 @@ class UserController extends Controller
                 'after'  => $after,
             ]
         );
+
+        // Background sync to WhatsApp Bot, Google Spreadsheet master, and notifications (non-blocking UI)
+        dispatch(function () use ($user, $passwordChanged, $rawPassword, $oldDepartment, $newDepartment) {
+            if ($passwordChanged && !empty($rawPassword)) {
+                try {
+                    $this->dispatchUserCredentials($user, $rawPassword, false);
+                } catch (\Throwable $credEx) {
+                    \Illuminate\Support\Facades\Log::warning("UserController@update: Credential dispatch for user #{$user->id} failed: " . $credEx->getMessage());
+                }
+            }
+
+            if (!empty($oldDepartment) && !empty($newDepartment) && strcasecmp($oldDepartment, $newDepartment) !== 0) {
+                try {
+                    $this->notifyHodOfTransferredStaffActiveIssues($user, $oldDepartment, $newDepartment);
+                } catch (\Throwable $hodEx) {
+                    \Illuminate\Support\Facades\Log::warning("UserController@update: Transferred staff notice for user #{$user->id} failed: " . $hodEx->getMessage());
+                }
+            }
+
+            $this->syncStaffWithBot();
+
+            try {
+                app(\App\Services\EmployeeSheetService::class)->syncSingleEmployeeToSheet($user);
+            } catch (\Throwable $sheetEx) {
+                \Illuminate\Support\Facades\Log::warning("UserController@update: Auto-sync user #{$user->id} to Google Sheet failed: " . $sheetEx->getMessage());
+            }
+        })->afterResponse();
 
         return response()->json([
             'success' => true,
