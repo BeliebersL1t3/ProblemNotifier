@@ -300,67 +300,107 @@ class TicketNotificationService
     }
 
     /**
-     * Send direct WhatsApp DM & in-app dashboard notification to active Supervisor(s) of the target department,
-     * with automatic failover to Admin if the supervisor has resigned or is inactive.
+     * Send direct WhatsApp DM & in-app dashboard notification to active Supervisor(s) of target department(s)
+     * exclusively on 1-hour progress escalation (no DM spam on new issue creation),
+     * with automatic failover to another active supervisor or Admin if a supervisor resigned/is inactive.
+     *
+     * @param mixed $issue
+     * @param string $action
+     * @param array<string, mixed> $context
+     * @return array{sent: bool, recipients: array<int, string>, is_fallback: bool}
      */
-    public static function notifyDepartmentSupervisor($issue, string $action = 'created'): void
+    public static function notifyDepartmentSupervisor($issue, string $action = 'escalation_1h', array $context = []): array
     {
-        $targetDepts = is_array($issue->target_departments) ? $issue->target_departments : [];
-        $targetDept = $targetDepts[0] ?? $issue->department ?? 'Umum';
+        $targetDepts = is_array($issue->target_departments) && !empty($issue->target_departments)
+            ? array_values(array_unique(array_filter(array_map('trim', $issue->target_departments))))
+            : [trim((string) ($issue->department ?? 'Umum')) ?: 'Umum'];
 
-        $resolved = self::resolveActiveSupervisors($targetDept);
-        $recipients = $resolved['recipients'];
-        $isFallback = $resolved['is_fallback'];
-        $fallbackReason = $resolved['fallback_reason'];
-
-        if ($recipients->isEmpty()) {
-            Log::warning("[Supervisor Notice] No active supervisor or admin found with WhatsApp number for dept {$targetDept}");
-            return;
-        }
-
-        $issueCode = method_exists($issue, 'getFormattedCode') ? $issue->getFormattedCode() : ($issue->issue_code ?: $issue->id);
+        $deptDisplay = implode(', ', $targetDepts);
+        $issueCode = $context['issueCode'] ?? \App\Http\Controllers\LeanController::formatIssueCode($issue);
         $tailscaleLink = self::getTailscaleAppUrl("/lapangan?focus={$issueCode}");
-        
-        $actionTitle = $action === 'transferred' ? 'Pengalihan Isu' : 'Laporan Isu Baru';
-        $desc = trim((string) ($issue->description ?: '-'));
         $location = $issue->location ?: '-';
         $reporter = $issue->reporter_name ?: 'Staf';
         $reporterDept = $issue->reporter_dept ? " ({$issue->reporter_dept})" : '';
+        $idleFormatted = $context['idleFormatted'] ?? '1 jam';
+        $lastUpdateWib = $context['lastUpdateWib'] ?? '-';
+        $statusLabel = $context['statusLabel'] ?? ($issue->status === 'in_progress'
+            ? 'Sedang Dikerjakan (In Progress — belum ada update baru)'
+            : 'Open (Belum Ditangani)');
+        $workersLine = $context['workersLine'] ?? (!empty($issue->claimed_by_name) ? "\n• *Petugas:* {$issue->claimed_by_name}" : '');
 
-        foreach ($recipients as $recipient) {
-            $spvTitle = $recipient->hod_title ?: ($recipient->role === 'admin' ? 'Administrator' : 'Supervisor ' . $targetDept);
-            $spvName = $recipient->staff_name ?: $recipient->name;
+        $notifiedUserIds = [];
+        $notifiedNames = [];
+        $anyDelivered = false;
+        $anyFallback = false;
 
-            // In-app dashboard notification
-            self::createDashboardNotification([
-                'user_id'     => $recipient->id,
-                'department'  => $targetDept,
-                'role_target' => $recipient->role === 'admin' ? 'admin' : 'supervisor',
-                'type'        => 'issue_assigned',
-                'title'       => "🔔 {$actionTitle} ({$issueCode})",
-                'message'     => "Isu #{$issueCode} [{$targetDept}]: {$issue->title} di {$location}. Perlu koordinasi penanganan.",
-                'link'        => "/lapangan?focus={$issueCode}",
-            ]);
+        foreach ($targetDepts as $targetDept) {
+            $resolved = self::resolveActiveSupervisors($targetDept);
+            $recipients = $resolved['recipients'];
+            $isFallback = (bool) $resolved['is_fallback'];
+            $fallbackReason = $resolved['fallback_reason'];
 
-            // WhatsApp Direct DM
-            if ($recipient->notify_whatsapp_tickets !== false && !empty($recipient->whatsapp_number)) {
-                $fallbackNotice = $isFallback ? "⚠️ *[PERHATIAN]*\n_{$fallbackReason}_\n\n" : "";
+            if ($isFallback) {
+                $anyFallback = true;
+            }
 
-                $msg = "🔔 *PEMBERITAHUAN {$actionTitle} (SUPERVISOR)* 🔔\n\n"
-                     . "Halo *{$spvName}* ({$spvTitle}),\n"
-                     . "Terdapat laporan isu yang ditujukan ke departemen *{$targetDept}*:\n\n"
-                     . "• *ID Tiket:* #{$issueCode}\n"
-                     . "• *Masalah:* {$issue->title}\n"
-                     . "• *Lokasi:* {$location}\n"
-                     . "• *Pelapor:* {$reporter}{$reporterDept}\n"
-                     . "• *Deskripsi:* {$desc}\n\n"
-                     . $fallbackNotice
-                     . "Mohon dikoordinasikan dengan tim pelaksana lapangan untuk penanganan.\n\n"
-                     . "🔗 *Buka Tiket:* {$tailscaleLink}";
+            if ($recipients->isEmpty()) {
+                Log::warning("[Supervisor Escalation] No active supervisor or admin found with WhatsApp number for dept {$targetDept} (ticket #{$issueCode})");
+                continue;
+            }
 
-                self::sendWhatsApp($recipient->whatsapp_number, $msg);
+            foreach ($recipients as $recipient) {
+                if (isset($notifiedUserIds[$recipient->id])) {
+                    continue;
+                }
+                $notifiedUserIds[$recipient->id] = true;
+
+                $spvTitle = $recipient->hod_title ?: ($recipient->role === 'admin' ? 'Administrator' : 'Supervisor ' . $targetDept);
+                $spvName = $recipient->staff_name ?: $recipient->name;
+
+                // In-app dashboard notification
+                self::createDashboardNotification([
+                    'user_id'     => $recipient->id,
+                    'department'  => $targetDept,
+                    'role_target' => $recipient->role === 'admin' ? 'admin' : 'supervisor',
+                    'type'        => 'issue_escalation',
+                    'title'       => "⏰ Eskalasi 1 Jam ({$issueCode})",
+                    'message'     => "Isu #{$issueCode} [{$targetDept}]: {$issue->title} di {$location} belum diperbarui selama {$idleFormatted}.",
+                    'link'        => "/lapangan?focus={$issueCode}",
+                ]);
+
+                // WhatsApp Direct DM
+                if ($recipient->notify_whatsapp_tickets !== false && !empty($recipient->whatsapp_number)) {
+                    $fallbackNotice = $isFallback ? "⚠️ *[AUTO-FAILOVER]*\n_{$fallbackReason}_\n\n" : "";
+
+                    $msg = "⏰ *ESKALASI SUPERVISOR (1 JAM TANPA KABAR)* ⏰\n\n"
+                         . "Halo *{$spvName}* ({$spvTitle}),\n"
+                         . "Isu pada departemen *{$targetDept}* berikut belum mendapatkan pembaruan progres selama *{$idleFormatted}*:\n\n"
+                         . "• *ID Tiket:* #{$issueCode}\n"
+                         . "• *Masalah:* {$issue->title}\n"
+                         . "• *Lokasi:* {$location}\n"
+                         . "• *Departemen:* {$deptDisplay}\n"
+                         . "• *Pelapor:* {$reporter}{$reporterDept}\n"
+                         . "• *Status:* {$statusLabel}{$workersLine}\n"
+                         . "• *Kabar Terakhir:* {$lastUpdateWib} ({$idleFormatted} lalu)\n\n"
+                         . $fallbackNotice
+                         . "Mohon segera arahkan tim untuk memperbarui *Update Progres*, menandai *Pending* jika terkendala, atau *Selesai* di Telunas Issue Tracker. Jika masih tanpa kabar hingga *3 jam*, laporan akan otomatis diteruskan ke Owner.\n\n"
+                         . "🔗 *Buka Tiket:* {$tailscaleLink}";
+
+                    if (self::sendWhatsApp($recipient->whatsapp_number, $msg)) {
+                        $anyDelivered = true;
+                        $notifiedNames[] = $spvName;
+                    } else {
+                        Log::warning("[Supervisor Escalation] Failed sending 1h DM to {$spvName} ({$recipient->whatsapp_number}) for ticket #{$issueCode}.");
+                    }
+                }
             }
         }
+
+        return [
+            'sent'        => $anyDelivered,
+            'recipients'  => $notifiedNames,
+            'is_fallback' => $anyFallback,
+        ];
     }
 
     /**

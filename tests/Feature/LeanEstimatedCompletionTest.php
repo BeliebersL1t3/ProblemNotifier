@@ -66,7 +66,17 @@ class LeanEstimatedCompletionTest extends TestCase
     public function test_dashboard_store_defaults_to_in_progress_and_starts_auto_timer_without_manual_eta(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-11-18 10:00:00', 'Asia/Jakarta'));
-        $engUser = $this->makeUser('department', 'Engineer', 'Spv Budi');
+        $engUser = User::factory()->create([
+            'name'            => 'Spv Budi',
+            'staff_name'      => 'Spv Budi',
+            'role'            => 'department',
+            'department'      => 'Engineer',
+            'is_hod'          => true,
+            'hod_title'       => 'Supervisor Engineer',
+            'whatsapp_number' => '081234567890',
+            'approval_status' => 'approved',
+            'is_active'       => true,
+        ]);
 
         $response = $this->actingAs($engUser)
             ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
@@ -110,7 +120,17 @@ class LeanEstimatedCompletionTest extends TestCase
     public function test_dashboard_store_still_preserves_open_status_when_start_in_progress_is_false(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-11-18 10:00:00', 'Asia/Jakarta'));
-        $engUser = $this->makeUser('department', 'Engineer', 'Spv Budi');
+        $engUser = User::factory()->create([
+            'name'            => 'Spv Budi',
+            'staff_name'      => 'Spv Budi',
+            'role'            => 'department',
+            'department'      => 'Engineer',
+            'is_hod'          => true,
+            'hod_title'       => 'Supervisor Engineer',
+            'whatsapp_number' => '081234567890',
+            'approval_status' => 'approved',
+            'is_active'       => true,
+        ]);
 
         $response = $this->actingAs($engUser)
             ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
@@ -134,7 +154,17 @@ class LeanEstimatedCompletionTest extends TestCase
         $start = Carbon::parse('2026-11-18 09:00:00', 'Asia/Jakarta')->setTimezone(config('app.timezone'));
         Carbon::setTestNow($start);
 
-        $engUser = $this->makeUser('department', 'Engineer', 'Spv Budi');
+        $engUser = User::factory()->create([
+            'name'            => 'Spv Budi',
+            'staff_name'      => 'Spv Budi',
+            'role'            => 'department',
+            'department'      => 'Engineer',
+            'is_hod'          => true,
+            'hod_title'       => 'Supervisor Engineer',
+            'whatsapp_number' => '081234567890',
+            'approval_status' => 'approved',
+            'is_active'       => true,
+        ]);
         $issue = LeanIssue::create([
             'location'           => 'TPI - Jetty',
             'title'              => 'Pompa Jetty Mati',
@@ -155,14 +185,17 @@ class LeanEstimatedCompletionTest extends TestCase
         Artisan::call('lean:check-escalations');
         Http::assertNothingSent();
 
-        // 2. At 60 minutes (1 hour): Group reminder fires once
+        // 2. At 60 minutes (1 hour): Supervisor DM escalation fires once (NOT sent to group /notify)
         Carbon::setTestNow($start->copy()->addMinutes(60));
         Artisan::call('lean:check-escalations');
 
         Http::assertSent(function ($request) {
-            return str_contains($request->url(), '/notify')
-                && !str_contains($request->url(), '/notify-direct')
-                && str_contains((string) ($request['message'] ?? ''), '1 JAM TANPA KABAR');
+            return str_contains($request->url(), '/notify-direct')
+                && ($request['phone'] ?? '') === '6281234567890'
+                && str_contains((string) ($request['message'] ?? ''), 'ESKALASI SUPERVISOR (1 JAM TANPA KABAR)');
+        });
+        Http::assertNotSent(function ($request) {
+            return str_ends_with($request->url(), '/notify');
         });
         $issue->refresh();
         $this->assertNotNull($issue->group_escalated_at);
@@ -213,12 +246,12 @@ class LeanEstimatedCompletionTest extends TestCase
         $this->assertEquals(1, $issue->escalation_owner_count);
         $this->assertTrue($issue->last_progress_at->equalTo($updateTime));
 
-        // 5. After another 60 minutes with no further progress, a fresh 1h Group reminder fires!
+        // 5. After another 60 minutes with no further progress, a fresh 1h Supervisor DM reminder fires!
         Http::fake(['*' => Http::response(['success' => true], 200)]);
         Carbon::setTestNow($updateTime->copy()->addMinutes(60));
         Artisan::call('lean:check-escalations');
 
-        Http::assertSent(fn ($req) => str_contains($req->url(), '/notify') && !str_contains($req->url(), '/notify-direct'));
+        Http::assertSent(fn ($req) => str_contains($req->url(), '/notify-direct') && ($req['phone'] ?? '') === '6281234567890');
         $issue->refresh();
         $this->assertEquals(2, $issue->escalation_group_count);
     }
@@ -228,7 +261,17 @@ class LeanEstimatedCompletionTest extends TestCase
         $start = Carbon::parse('2026-11-18 08:00:00', 'Asia/Jakarta')->setTimezone(config('app.timezone'));
         Carbon::setTestNow($start);
 
-        $engUser = $this->makeUser('department', 'Engineer', 'Spv Budi');
+        $engUser = User::factory()->create([
+            'name'            => 'Spv Budi',
+            'staff_name'      => 'Spv Budi',
+            'role'            => 'department',
+            'department'      => 'Engineer',
+            'is_hod'          => true,
+            'hod_title'       => 'Supervisor Engineer',
+            'whatsapp_number' => '081234567890',
+            'approval_status' => 'approved',
+            'is_active'       => true,
+        ]);
         $issue = LeanIssue::create([
             'location'           => 'TPI - Kitchen',
             'title'              => 'Chiller Kurang Dingin',
@@ -297,5 +340,104 @@ class LeanEstimatedCompletionTest extends TestCase
         Carbon::setTestNow($resolveTime->copy()->addHours(5));
         Artisan::call('lean:check-escalations');
         Http::assertNothingSent();
+    }
+
+    public function test_1h_escalation_fails_over_to_another_active_supervisor_when_primary_resigns(): void
+    {
+        $start = Carbon::parse('2026-11-18 09:00:00', 'Asia/Jakarta')->setTimezone(config('app.timezone'));
+        Carbon::setTestNow($start);
+
+        // Resigned / inactive primary supervisor
+        User::factory()->create([
+            'name'            => 'Spv Resigned',
+            'staff_name'      => 'Spv Resigned',
+            'role'            => 'department',
+            'department'      => 'Engineer',
+            'is_hod'          => true,
+            'hod_title'       => 'Supervisor Engineer',
+            'whatsapp_number' => '081211110000',
+            'approval_status' => 'approved',
+            'is_active'       => false,
+        ]);
+
+        // Active backup supervisor in the same department
+        User::factory()->create([
+            'name'            => 'Spv Pengganti',
+            'staff_name'      => 'Spv Pengganti',
+            'role'            => 'department',
+            'department'      => 'Engineer',
+            'is_hod'          => true,
+            'hod_title'       => 'Supervisor Engineer',
+            'whatsapp_number' => '081299998888',
+            'approval_status' => 'approved',
+            'is_active'       => true,
+        ]);
+
+        LeanIssue::create([
+            'location'           => 'TPI - Powerhouse',
+            'title'              => 'Panel Listrik Panas',
+            'description'        => 'Suhu panel naik',
+            'target_departments' => ['Engineer'],
+            'reporter_name'      => 'Taufik',
+            'reporter_dept'      => 'OE',
+            'status'             => 'open',
+            'last_progress_at'   => $start,
+        ]);
+
+        Carbon::setTestNow($start->copy()->addMinutes(60));
+        Artisan::call('lean:check-escalations');
+
+        Http::assertSent(fn ($req) => str_contains($req->url(), '/notify-direct') && ($req['phone'] ?? '') === '6281299998888');
+        Http::assertNotSent(fn ($req) => ($req['phone'] ?? '') === '6281211110000');
+    }
+
+    public function test_1h_escalation_fails_over_to_admin_when_no_active_supervisor_in_department(): void
+    {
+        $start = Carbon::parse('2026-11-18 10:00:00', 'Asia/Jakarta')->setTimezone(config('app.timezone'));
+        Carbon::setTestNow($start);
+
+        // Resigned supervisor in Kitchen (no other active supervisor in Kitchen)
+        User::factory()->create([
+            'name'            => 'Spv Kitchen Resign',
+            'staff_name'      => 'Spv Kitchen Resign',
+            'role'            => 'department',
+            'department'      => 'Kitchen',
+            'is_hod'          => true,
+            'whatsapp_number' => '081255550000',
+            'approval_status' => 'approved',
+            'is_active'       => false,
+        ]);
+
+        // Active Admin fallback
+        User::factory()->create([
+            'name'            => 'Admin Telunas',
+            'staff_name'      => 'Admin Telunas',
+            'role'            => 'admin',
+            'department'      => null,
+            'whatsapp_number' => '081277776666',
+            'approval_status' => 'approved',
+            'is_active'       => true,
+        ]);
+
+        LeanIssue::create([
+            'location'           => 'TPI - Kitchen',
+            'title'              => 'Kompor Gas Bocor',
+            'description'        => 'Selang kompor perlu diganti',
+            'target_departments' => ['Kitchen'],
+            'reporter_name'      => 'Chef Andi',
+            'reporter_dept'      => 'Kitchen',
+            'status'             => 'open',
+            'last_progress_at'   => $start,
+        ]);
+
+        Carbon::setTestNow($start->copy()->addMinutes(60));
+        Artisan::call('lean:check-escalations');
+
+        Http::assertSent(function ($req) {
+            return str_contains($req->url(), '/notify-direct')
+                && ($req['phone'] ?? '') === '6281277776666'
+                && str_contains((string) ($req['message'] ?? ''), 'AUTO-FAILOVER');
+        });
+        Http::assertNotSent(fn ($req) => ($req['phone'] ?? '') === '6281255550000');
     }
 }

@@ -457,7 +457,7 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                                                     )}
                                                 </div>
                                                 <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                                    Menerima notifikasi langsung via WhatsApp (DM) untuk setiap isu baru di departemen ini.
+                                                    Menerima peringatan eskalasi via WhatsApp (DM) jika ada isu di departemen ini yang belum diperbarui selama 1 jam.
                                                 </p>
                                             </div>
                                         </div>

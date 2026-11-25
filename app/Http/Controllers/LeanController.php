@@ -617,7 +617,6 @@ class LeanController extends Controller
             try {
                 $this->notifyReporterCreated($issue, $receiverName, $receiverDept, $workerNames);
                 $this->notifyGroupsCreated($issue, $receiverName, $receiverDept, $workerNames);
-                TicketNotificationService::notifyDepartmentSupervisor($issue, 'created');
             } catch (\Throwable $e) {
                 Log::error('Background notification error on store: ' . $e->getMessage());
             }
@@ -1187,11 +1186,6 @@ class LeanController extends Controller
 
         $this->notifyReporterTransferred($issue, $oldDept, $toDept, $actorName, $reason);
         $this->notifyGroupsTransferred($issue, $oldDepts, $oldDept, $toDept, $actorName, $reason);
-        try {
-            TicketNotificationService::notifyDepartmentSupervisor($issue, 'transferred');
-        } catch (\Throwable $e) {
-            Log::error('Supervisor notification error on transfer: ' . $e->getMessage());
-        }
         $this->syncIssueTransferToSheets($issue, $oldDept, $toDept, $actorName, $reason);
 
         return $this->actionSuccessResponse($request, $issue, __('telunas.lean_transfer_success', ['dept' => $toDept]));

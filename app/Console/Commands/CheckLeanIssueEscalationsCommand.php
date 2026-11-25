@@ -13,7 +13,7 @@ class CheckLeanIssueEscalationsCommand extends Command
 {
     protected $signature = 'lean:check-escalations';
 
-    protected $description = 'Check active lean issues without progress updates for 1h (Group WA reminder) and 3h (Owner WA escalation)';
+    protected $description = 'Check active lean issues without progress updates for 1h (Supervisor WA DM with failover) and 3h (Owner WA escalation)';
 
     public const GROUP_ESCALATION_MINUTES = 60;
     public const OWNER_ESCALATION_MINUTES = 180;
@@ -74,36 +74,26 @@ class CheckLeanIssueEscalationsCommand extends Command
 
             $tailscaleLink = TicketNotificationService::getTailscaleAppUrl("/lapangan?focus={$issueCode}");
 
-            // Stage 1: >= 1 hour without update -> notify target department WhatsApp group
+            // Stage 1: >= 1 hour without update -> notify active department Supervisor(s) directly via WA DM (with auto-failover to another active Supervisor or Admin)
             if ($issue->group_escalated_at === null && $idleMinutes >= self::GROUP_ESCALATION_MINUTES) {
-                $groupMessage = "⏰ *PENGINGAT PROGRES (1 JAM TANPA KABAR)* ⏰\n\n"
-                    . "• *ID Tiket:* #{$issueCode}\n"
-                    . "• *Masalah:* {$issue->title}\n"
-                    . "• *Lokasi:* {$issue->location}\n"
-                    . "• *Departemen:* {$deptDisplay}\n"
-                    . "• *Pelapor:* {$issue->reporter_name}\n"
-                    . "• *Status:* {$statusLabel}{$workersLine}\n"
-                    . "• *Kabar Terakhir:* {$lastUpdateWib} ({$idleFormatted} lalu)\n\n"
-                    . "Mohon Supervisor/tim segera memperbarui *Update Progres*, menandai *Pending* jika terkendala, atau *Selesai* di aplikasi Telunas Issue Tracker. Jika masih tanpa kabar hingga *3 jam*, laporan akan otomatis diteruskan ke Owner.\n\n"
-                    . "🔗 *Buka Tiket:* {$tailscaleLink}";
-
-                $sent = TicketNotificationService::sendWhatsAppGroup([
-                    'message'         => $groupMessage,
-                    'departments'     => $targetDepts,
-                    'location'        => $issue->location,
-                    'includeLocation' => true,
-                    'includeGeneral'  => true,
-                    'departmentOnly'  => false,
+                $spvResult = TicketNotificationService::notifyDepartmentSupervisor($issue, 'escalation_1h', [
+                    'issueCode'     => $issueCode,
+                    'idleFormatted' => $idleFormatted,
+                    'lastUpdateWib' => $lastUpdateWib,
+                    'statusLabel'   => $statusLabel,
+                    'workersLine'   => $workersLine,
                 ]);
 
-                if ($sent) {
+                if ($spvResult['sent']) {
+                    $recipientNames = !empty($spvResult['recipients']) ? implode(', ', $spvResult['recipients']) : 'Supervisor';
+                    $targetRoleLabel = $spvResult['is_fallback'] ? 'Admin (Failover Supervisor)' : 'Supervisor';
                     $logs = $issue->progress_logs ?? [];
                     $logs[] = [
                         'id'         => uniqid('log_', true),
                         'type'       => 'escalation_group',
                         'actor'      => 'Sistem Timer Otomatis',
                         'actor_dept' => $deptDisplay,
-                        'message'    => "Pengingat 1 jam tanpa kabar ({$idleFormatted}) terkirim otomatis ke grup WhatsApp departemen.",
+                        'message'    => "Eskalasi 1 jam tanpa kabar ({$idleFormatted}) terkirim otomatis ke WhatsApp {$targetRoleLabel} ({$recipientNames}).",
                         'created_at' => $now->copy()->setTimezone('Asia/Jakarta')->toIso8601String(),
                     ];
 
@@ -122,7 +112,7 @@ class CheckLeanIssueEscalationsCommand extends Command
                         $groupSent++;
                     }
                 } else {
-                    Log::warning("[lean:check-escalations] Failed sending 1h group reminder for ticket #{$issueCode} (ID {$issue->id}). Will retry next cycle.");
+                    Log::warning("[lean:check-escalations] Failed sending 1h supervisor DM escalation for ticket #{$issueCode} (ID {$issue->id}). Will retry next cycle.");
                 }
             }
 
