@@ -102,8 +102,8 @@ export function EmployeeSheetSyncModal({ isOpen, onClose, onSyncSuccess }) {
 
     const handleExportAll = async () => {
         const confirmMsg = isEn 
-            ? 'Place all existing staff accounts into this Google Spreadsheet? (Existing sheet rows will be refreshed).'
-            : 'Letakkan seluruh data karyawan saat ini ke dalam Google Spreadsheet ini? (Data baris spreadsheet akan diperbarui).';
+            ? 'Update all employee rows in this Google Spreadsheet from current Web data? (Existing sheet rows will be refreshed).'
+            : 'Perbarui seluruh data karyawan di Google Spreadsheet ini dari data Web saat ini? (Baris data di spreadsheet akan diperbarui).';
         if (!confirm(confirmMsg)) return;
 
         setExporting(true);
@@ -338,22 +338,27 @@ export function EmployeeSheetSyncModal({ isOpen, onClose, onSyncSuccess }) {
                             onClick={handleExportAll}
                             disabled={exporting || syncing || !urlInput.trim()}
                             className="px-3.5 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                            title={isEn ? 'Export all existing employees from app to this spreadsheet' : 'Letakkan seluruh data karyawan saat ini ke spreadsheet ini'}
+                            title={isEn ? 'Send and update all employee records in Google Sheet from Web' : 'Kirim dan perbarui seluruh data karyawan di Google Sheet dari Web'}
                         >
                             <Upload className={`w-3.5 h-3.5 ${exporting ? 'animate-bounce' : ''}`} />
-                            <span>{exporting ? (isEn ? 'Exporting...' : 'Mengekspor...') : (isEn ? 'Export to Sheet' : 'Letakkan Data ke Sheet')}</span>
+                            <span>
+                                {exporting
+                                    ? (isEn ? 'Updating Sheet...' : 'Memperbarui Sheet...')
+                                    : (isEn ? 'Update Sheet (from Web)' : 'Perbarui Sheet (dari Web)')}
+                            </span>
                         </button>
                         <button
                             type="button"
                             onClick={handleStartSync}
                             disabled={syncing || exporting || !urlInput.trim()}
                             className="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-95"
+                            title={isEn ? 'Pull and update Web accounts from Google Sheet (auto-hashes new passwords)' : 'Ambil dan perbarui akun karyawan di Web dari Google Sheet (otomatis hash password baru)'}
                         >
                             <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
                             <span>
                                 {syncing 
-                                    ? (isEn ? 'Syncing...' : 'Menyinkronkan...') 
-                                    : (isEn ? 'Sync from Sheet' : 'Sync dari Sheet')}
+                                    ? (isEn ? 'Updating Web...' : 'Memperbarui Web...') 
+                                    : (isEn ? 'Update Web (from Sheet)' : 'Perbarui Web (dari Sheet)')}
                             </span>
                         </button>
                     </div>
