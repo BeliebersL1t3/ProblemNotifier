@@ -5,8 +5,10 @@ namespace App\Services;
 use App\Models\ApprovalTicket;
 use App\Models\DashboardNotification;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class TicketNotificationService
 {
@@ -606,5 +608,218 @@ class TicketNotificationService
             }
             self::sendWhatsApp($targetUser->whatsapp_number, $waMsg);
         }
+    }
+
+    /**
+     * Snapshot all currently active Administrator recipients BEFORE any role/status mutation.
+     * Optionally includes a target user using their original pre-change phone & email so an
+     * attacker cannot silence alerts by clearing/modifying contact info alongside a demotion.
+     *
+     * @return array<int, array{id: int, name: string, whatsapp_number: ?string, email: ?string}>
+     */
+    public static function snapshotActiveAdmins(?User $extraUser = null, ?string $originalPhone = null, ?string $originalEmail = null): array
+    {
+        $admins = User::where('role', 'admin')
+            ->where('is_active', true)
+            ->whereNull('deleted_at')
+            ->get(['id', 'name', 'staff_name', 'whatsapp_number', 'email']);
+
+        $byId = [];
+        foreach ($admins as $admin) {
+            $byId[$admin->id] = [
+                'id'              => (int) $admin->id,
+                'name'            => (string) ($admin->staff_name ?: $admin->name ?: 'Administrator'),
+                'whatsapp_number' => $admin->whatsapp_number ? trim((string) $admin->whatsapp_number) : null,
+                'email'           => $admin->email ? trim((string) $admin->email) : null,
+            ];
+        }
+
+        if ($extraUser) {
+            $phone = $originalPhone !== null ? trim($originalPhone) : ($extraUser->whatsapp_number ? trim((string) $extraUser->whatsapp_number) : null);
+            $email = $originalEmail !== null ? trim($originalEmail) : ($extraUser->email ? trim((string) $extraUser->email) : null);
+
+            $byId[(int) $extraUser->id] = [
+                'id'              => (int) $extraUser->id,
+                'name'            => (string) ($extraUser->staff_name ?: $extraUser->name ?: 'Administrator'),
+                'whatsapp_number' => $phone !== '' ? $phone : null,
+                'email'           => $email !== '' ? $email : null,
+            ];
+        }
+
+        return array_values($byId);
+    }
+
+    /**
+     * Build security alert message payloads (WhatsApp + Email fallback) for Admin privilege changes.
+     *
+     * @return array{subject: string, whatsapp: string, email: string}
+     */
+    public static function buildAdminPrivilegeAlertMessage(array $event, bool $isAffectedTarget = false): array
+    {
+        $type = (string) ($event['type'] ?? 'PROMOTED_TO_ADMIN');
+        $targetName = (string) ($event['target_name'] ?? '-');
+        $targetEmail = (string) ($event['target_email'] ?? '-');
+        $targetDept = (string) ($event['target_department'] ?? 'Umum');
+        $changeDetail = (string) ($event['change_detail'] ?? '-');
+        $actorName = (string) ($event['actor_name'] ?? 'Administrator');
+        $actorIp = (string) ($event['actor_ip'] ?? '-');
+        $source = (string) ($event['source'] ?? 'Web Manajemen User');
+        $timestamp = (string) ($event['timestamp'] ?? Carbon::now('Asia/Jakarta')->format('d M Y, H:i') . ' WIB');
+        $auditUrl = self::getTailscaleAppUrl('/users');
+
+        $typeTitle = match ($type) {
+            'NEW_ADMIN'          => 'Akun Administrator Baru Dibuat',
+            'PROMOTED_TO_ADMIN'  => 'Promosi Hak Akses ke Administrator',
+            'DEMOTED_FROM_ADMIN' => 'Pencabutan Hak Akses Administrator',
+            'ADMIN_DEACTIVATED'  => 'Penonaktifan / Arsip Akun Administrator',
+            default              => 'Perubahan Hak Akses Administrator',
+        };
+
+        $subject = "[SECURITY ALERT] {$typeTitle}: {$targetName} - Telunas Issue Tracker";
+
+        if ($isAffectedTarget) {
+            $waLead = "⚠️ *Pemberitahuan Khusus untuk Anda ({$targetName}):*\n"
+                . "Hak akses *Administrator* pada akun Anda sedang diubah / dicabut. Pesan ini dikirim sebelum status Administrator Anda berakhir.";
+            $emailLead = "PEMBERITAHUAN KHUSUS UNTUK ANDA ({$targetName}):\n"
+                . "Hak akses Administrator pada akun Anda sedang diubah / dicabut. Pemberitahuan ini dikirim sebelum status Administrator Anda berakhir.";
+        } else {
+            $waLead = "🔔 *Pemberitahuan Keamanan untuk Seluruh Administrator Aktif:*\n"
+                . "Terdeteksi perubahan penting pada hak akses *Administrator* di sistem Telunas Issue Tracker.";
+            $emailLead = "PEMBERITAHUAN KEAMANAN UNTUK SELURUH ADMINISTRATOR AKTIF:\n"
+                . "Terdeteksi perubahan penting pada hak akses Administrator di sistem Telunas Issue Tracker.";
+        }
+
+        $waMsg = "🚨 *PERINGATAN KEAMANAN AKSES ADMIN* 🚨\n\n"
+            . "{$waLead}\n\n"
+            . "• *Kejadian:* {$typeTitle}\n"
+            . "• *Akun Target:* {$targetName} ({$targetEmail})\n"
+            . "• *Departemen:* {$targetDept}\n"
+            . "• *Perubahan:* {$changeDetail}\n"
+            . "• *Dilakukan Oleh:* {$actorName}" . ($actorIp !== '-' && $actorIp !== '' ? " (IP: {$actorIp})" : "") . "\n"
+            . "• *Sumber:* {$source}\n"
+            . "• *Waktu:* {$timestamp}\n\n"
+            . "🔎 *Cek Audit Trail:* {$auditUrl}\n"
+            . "_Jika perubahan ini tidak Anda kenali atau tidak sah, segera periksa Audit Trail dan hubungi tim IT._";
+
+        $emailMsg = "PERINGATAN KEAMANAN AKSES ADMINISTRATOR - TELUNAS ISSUE TRACKER\n\n"
+            . "{$emailLead}\n\n"
+            . "Kejadian       : {$typeTitle}\n"
+            . "Akun Target    : {$targetName} ({$targetEmail})\n"
+            . "Departemen     : {$targetDept}\n"
+            . "Perubahan      : {$changeDetail}\n"
+            . "Dilakukan Oleh : {$actorName}" . ($actorIp !== '-' && $actorIp !== '' ? " (IP: {$actorIp})" : "") . "\n"
+            . "Sumber         : {$source}\n"
+            . "Waktu          : {$timestamp}\n\n"
+            . "Cek Audit Trail: {$auditUrl}\n\n"
+            . "Jika perubahan ini tidak Anda kenali atau tidak sah, segera periksa Audit Trail dan hubungi tim IT.\n"
+            . "--\nSistem Keamanan Telunas Issue Tracker";
+
+        return [
+            'subject'  => $subject,
+            'whatsapp' => $waMsg,
+            'email'    => $emailMsg,
+        ];
+    }
+
+    /**
+     * Deliver a security alert to a single recipient via WhatsApp with automatic Email fallback.
+     *
+     * @return array{whatsapp_sent: bool, email_sent: bool}
+     */
+    private static function deliverSecurityAlertToRecipient(array $recipient, array $messages, string $contextLabel): array
+    {
+        $whatsappSent = false;
+        $emailSent = false;
+        $phone = !empty($recipient['whatsapp_number']) ? trim((string) $recipient['whatsapp_number']) : '';
+        $email = !empty($recipient['email']) ? trim((string) $recipient['email']) : '';
+        $name = (string) ($recipient['name'] ?? 'Admin');
+
+        if ($phone !== '') {
+            try {
+                $whatsappSent = self::sendWhatsApp($phone, $messages['whatsapp']);
+            } catch (\Throwable $waEx) {
+                Log::warning("AdminSecurityAlert ({$contextLabel}): WhatsApp send error for {$name}: " . $waEx->getMessage());
+            }
+        }
+
+        // Automatic fallback to Email if WhatsApp number is empty OR WhatsApp delivery failed
+        if (!$whatsappSent && $email !== '') {
+            try {
+                Mail::raw($messages['email'], function ($mail) use ($email, $messages) {
+                    $mail->to($email)->subject($messages['subject']);
+                });
+                $emailSent = true;
+                Log::info("AdminSecurityAlert ({$contextLabel}): Fallback email sent to {$email} ({$name}).");
+            } catch (\Throwable $mailEx) {
+                Log::warning("AdminSecurityAlert ({$contextLabel}): Fallback email failed for {$email} ({$name}): " . $mailEx->getMessage());
+            }
+        }
+
+        if (!$whatsappSent && !$emailSent) {
+            Log::warning("AdminSecurityAlert ({$contextLabel}): No delivery channel succeeded for {$name} (phone=" . ($phone !== '' ? 'set' : 'empty') . ", email=" . ($email !== '' ? 'set' : 'empty') . ").");
+        }
+
+        return [
+            'whatsapp_sent' => $whatsappSent,
+            'email_sent'    => $emailSent,
+        ];
+    }
+
+    /**
+     * Synchronously notify an Admin BEFORE their Administrator privileges are revoked or deactivated.
+     * Guarantees the affected admin receives the alert while they are still an Administrator.
+     */
+    public static function notifyTargetAdminBeforeRevocation(array $event, array $targetRecipient): array
+    {
+        $messages = self::buildAdminPrivilegeAlertMessage($event, true);
+        return self::deliverSecurityAlertToRecipient($targetRecipient, $messages, 'pre-revocation');
+    }
+
+    /**
+     * Notify all active Administrators captured in the pre-change snapshot (WhatsApp + Email fallback).
+     * Skips $alreadyNotifiedUserId so a demoted/deactivated admin does not receive a duplicate alert.
+     */
+    public static function notifyActiveAdminsOfPrivilegeChange(array $event, array $recipientSnapshot, ?int $alreadyNotifiedUserId = null): array
+    {
+        $messages = self::buildAdminPrivilegeAlertMessage($event, false);
+        $whatsappCount = 0;
+        $emailCount = 0;
+        $seenPhones = [];
+        $seenEmails = [];
+
+        foreach ($recipientSnapshot as $recipient) {
+            $recipientId = isset($recipient['id']) ? (int) $recipient['id'] : null;
+            if ($alreadyNotifiedUserId !== null && $recipientId === $alreadyNotifiedUserId) {
+                continue;
+            }
+
+            $normPhone = !empty($recipient['whatsapp_number'])
+                ? preg_replace('/[^0-9]/', '', (string) $recipient['whatsapp_number'])
+                : '';
+            $normEmail = !empty($recipient['email']) ? strtolower(trim((string) $recipient['email'])) : '';
+
+            if (($normPhone !== '' && isset($seenPhones[$normPhone])) || ($normPhone === '' && $normEmail !== '' && isset($seenEmails[$normEmail]))) {
+                continue;
+            }
+            if ($normPhone !== '') {
+                $seenPhones[$normPhone] = true;
+            }
+            if ($normEmail !== '') {
+                $seenEmails[$normEmail] = true;
+            }
+
+            $res = self::deliverSecurityAlertToRecipient($recipient, $messages, 'admin-broadcast');
+            if ($res['whatsapp_sent']) {
+                $whatsappCount++;
+            }
+            if ($res['email_sent']) {
+                $emailCount++;
+            }
+        }
+
+        return [
+            'whatsapp_sent' => $whatsappCount,
+            'email_sent'    => $emailCount,
+        ];
     }
 }

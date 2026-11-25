@@ -257,6 +257,10 @@ class UserController extends Controller
             }
         }
 
+        $adminSnapshotForNewAdmin = ($role === 'admin')
+            ? TicketNotificationService::snapshotActiveAdmins()
+            : [];
+
         $user = User::create([
             'name'            => $validated['name'],
             'staff_name'      => $validated['staff_name'] ?: $validated['name'],
@@ -276,8 +280,9 @@ class UserController extends Controller
         ]);
 
         // Audit log (DB immediate, Google Audit Sheet async afterResponse)
+        $actingAdmin = auth()->user();
         UserAuditLog::record(
-            auth()->user(),
+            $actingAdmin,
             $user,
             'USER_CREATED',
             [
@@ -292,11 +297,31 @@ class UserController extends Controller
             ]
         );
 
+        $newAdminAlertEvent = ($role === 'admin') ? [
+            'type'              => 'NEW_ADMIN',
+            'target_name'       => $user->staff_name ?: $user->name,
+            'target_email'      => $user->email,
+            'target_department' => $user->department ?: 'Umum',
+            'change_detail'     => 'Akun baru dibuat dengan peran Administrator',
+            'actor_name'        => $actingAdmin ? ($actingAdmin->staff_name ?: $actingAdmin->name) : 'Administrator',
+            'actor_ip'          => $request->ip() ?: '-',
+            'source'            => 'Web Manajemen User',
+            'timestamp'         => \Carbon\Carbon::now('Asia/Jakarta')->format('d M Y, H:i') . ' WIB',
+        ] : null;
+
         // Background sync to WhatsApp Bot, Google Spreadsheet master, and credential dispatch
         $rawPassword = $validated['password'] ?? '';
-        app()->terminating(function () use ($user, $cleanPhone, $rawPassword) {
+        app()->terminating(function () use ($user, $cleanPhone, $rawPassword, $newAdminAlertEvent, $adminSnapshotForNewAdmin) {
             if (!empty($cleanPhone)) {
                 $this->syncStaffWithBot();
+            }
+
+            if ($newAdminAlertEvent !== null && !empty($adminSnapshotForNewAdmin)) {
+                try {
+                    TicketNotificationService::notifyActiveAdminsOfPrivilegeChange($newAdminAlertEvent, $adminSnapshotForNewAdmin);
+                } catch (\Throwable $secEx) {
+                    \Illuminate\Support\Facades\Log::warning("UserController@store: Admin security alert failed for user #{$user->id}: " . $secEx->getMessage());
+                }
             }
 
             try {
@@ -469,6 +494,81 @@ class UserController extends Controller
             $passwordChanged = true;
         }
 
+        // Security alert detection BEFORE saving role/status revocation to DB
+        $wasAdmin = ($before['role'] === 'admin');
+        $wasActive = (bool) $before['is_active'] && !$user->trashed();
+        $isNowAdmin = ($newRole === 'admin');
+        $isNowActive = (bool) $user->is_active;
+
+        $adminSecurityEvent = null;
+        $adminSnapshotBeforeUpdate = [];
+        $alreadyNotifiedAdminId = null;
+
+        if ($wasAdmin && !$isNowAdmin) {
+            $newRoleLabel = $newRole === 'department' ? 'Departemen / Staff' : ucfirst($newRole);
+            $changeDetail = "Administrator → {$newRoleLabel}" . (!$isNowActive ? ' (sekaligus dinonaktifkan)' : '');
+            $adminSecurityEvent = [
+                'type'              => 'DEMOTED_FROM_ADMIN',
+                'target_name'       => $before['staff_name'] ?: $before['name'],
+                'target_email'      => $before['email'],
+                'target_department' => $department ?: ($before['department'] ?: 'Umum'),
+                'change_detail'     => $changeDetail,
+                'actor_name'        => $actingAdmin ? ($actingAdmin->staff_name ?: $actingAdmin->name) : 'Administrator',
+                'actor_ip'          => $request->ip() ?: '-',
+                'source'            => 'Web Manajemen User',
+                'timestamp'         => \Carbon\Carbon::now('Asia/Jakarta')->format('d M Y, H:i') . ' WIB',
+            ];
+        } elseif ($wasAdmin && $wasActive && !$isNowActive) {
+            $adminSecurityEvent = [
+                'type'              => 'ADMIN_DEACTIVATED',
+                'target_name'       => $before['staff_name'] ?: $before['name'],
+                'target_email'      => $before['email'],
+                'target_department' => $department ?: ($before['department'] ?: 'Umum'),
+                'change_detail'     => 'Status Administrator: Aktif → Nonaktif',
+                'actor_name'        => $actingAdmin ? ($actingAdmin->staff_name ?: $actingAdmin->name) : 'Administrator',
+                'actor_ip'          => $request->ip() ?: '-',
+                'source'            => 'Web Manajemen User',
+                'timestamp'         => \Carbon\Carbon::now('Asia/Jakarta')->format('d M Y, H:i') . ' WIB',
+            ];
+        } elseif (!$wasAdmin && $isNowAdmin) {
+            $oldRoleLabel = ($before['role'] === 'department') ? 'Departemen / Staff' : ucfirst((string) $before['role']);
+            $adminSecurityEvent = [
+                'type'              => 'PROMOTED_TO_ADMIN',
+                'target_name'       => $user->staff_name ?: $user->name,
+                'target_email'      => $user->email,
+                'target_department' => $department ?: ($before['department'] ?: 'Umum'),
+                'change_detail'     => "{$oldRoleLabel} → Administrator",
+                'actor_name'        => $actingAdmin ? ($actingAdmin->staff_name ?: $actingAdmin->name) : 'Administrator',
+                'actor_ip'          => $request->ip() ?: '-',
+                'source'            => 'Web Manajemen User',
+                'timestamp'         => \Carbon\Carbon::now('Asia/Jakarta')->format('d M Y, H:i') . ' WIB',
+            ];
+        }
+
+        if ($adminSecurityEvent !== null) {
+            $adminSnapshotBeforeUpdate = TicketNotificationService::snapshotActiveAdmins(
+                $wasAdmin ? $user : null,
+                $before['whatsapp_number'] ?? null,
+                $before['email'] ?? null
+            );
+
+            // Guarantee the demoted/deactivated admin receives notification BEFORE their role/status changes in DB
+            if (in_array($adminSecurityEvent['type'], ['DEMOTED_FROM_ADMIN', 'ADMIN_DEACTIVATED'], true)) {
+                $targetRecipient = [
+                    'id'              => (int) $user->id,
+                    'name'            => (string) ($before['staff_name'] ?: $before['name']),
+                    'whatsapp_number' => $before['whatsapp_number'] ?? null,
+                    'email'           => $before['email'] ?? null,
+                ];
+                try {
+                    TicketNotificationService::notifyTargetAdminBeforeRevocation($adminSecurityEvent, $targetRecipient);
+                    $alreadyNotifiedAdminId = (int) $user->id;
+                } catch (\Throwable $preEx) {
+                    \Illuminate\Support\Facades\Log::warning("UserController@update: Pre-revocation alert failed for admin #{$user->id}: " . $preEx->getMessage());
+                }
+            }
+        }
+
         $user->save();
 
         $oldDepartment = $before['department'] ?? null;
@@ -486,6 +586,7 @@ class UserController extends Controller
             'is_supervisor'   => (bool) $user->is_hod,
             'is_hod'          => (bool) $user->is_hod,
             'hod_title'       => $user->hod_title,
+            'is_active'       => (bool) $user->is_active,
             'permissions'     => $user->permissions,
             'password_reset'  => $passwordChanged,
         ];
@@ -502,7 +603,19 @@ class UserController extends Controller
         );
 
         // Background sync to WhatsApp Bot, Google Spreadsheet master, and notifications (non-blocking UI)
-        app()->terminating(function () use ($user, $passwordChanged, $rawPassword, $oldDepartment, $newDepartment) {
+        app()->terminating(function () use ($user, $passwordChanged, $rawPassword, $oldDepartment, $newDepartment, $adminSecurityEvent, $adminSnapshotBeforeUpdate, $alreadyNotifiedAdminId) {
+            if ($adminSecurityEvent !== null && !empty($adminSnapshotBeforeUpdate)) {
+                try {
+                    TicketNotificationService::notifyActiveAdminsOfPrivilegeChange(
+                        $adminSecurityEvent,
+                        $adminSnapshotBeforeUpdate,
+                        $alreadyNotifiedAdminId
+                    );
+                } catch (\Throwable $secEx) {
+                    \Illuminate\Support\Facades\Log::warning("UserController@update: Admin security broadcast failed for user #{$user->id}: " . $secEx->getMessage());
+                }
+            }
+
             if ($passwordChanged && !empty($rawPassword)) {
                 try {
                     $this->dispatchUserCredentials($user, $rawPassword, false);
@@ -839,7 +952,58 @@ class UserController extends Controller
             }
         }
 
+        $adminArchiveEvent = null;
+        $adminArchiveSnapshot = [];
+        $alreadyNotifiedArchivedAdminId = null;
+
+        if ($user->isAdmin()) {
+            $actingAdmin = auth()->user();
+            $adminArchiveSnapshot = TicketNotificationService::snapshotActiveAdmins(
+                $user,
+                $user->whatsapp_number,
+                $user->email
+            );
+            $adminArchiveEvent = [
+                'type'              => 'ADMIN_DEACTIVATED',
+                'target_name'       => $user->staff_name ?: $user->name,
+                'target_email'      => $user->email,
+                'target_department' => $user->department ?: 'Umum',
+                'change_detail'     => 'Akun Administrator di-archive (Soft Delete)',
+                'actor_name'        => $actingAdmin ? ($actingAdmin->staff_name ?: $actingAdmin->name) : 'Administrator',
+                'actor_ip'          => request()?->ip() ?: '-',
+                'source'            => 'Web Manajemen User',
+                'timestamp'         => \Carbon\Carbon::now('Asia/Jakarta')->format('d M Y, H:i') . ' WIB',
+            ];
+
+            // Notify target Admin BEFORE soft-deleting them
+            try {
+                TicketNotificationService::notifyTargetAdminBeforeRevocation($adminArchiveEvent, [
+                    'id'              => (int) $user->id,
+                    'name'            => (string) ($user->staff_name ?: $user->name),
+                    'whatsapp_number' => $user->whatsapp_number,
+                    'email'           => $user->email,
+                ]);
+                $alreadyNotifiedArchivedAdminId = (int) $user->id;
+            } catch (\Throwable $preEx) {
+                \Illuminate\Support\Facades\Log::warning("UserController@destroy: Pre-archive alert failed for admin #{$user->id}: " . $preEx->getMessage());
+            }
+        }
+
         $user->delete();
+
+        if ($adminArchiveEvent !== null && !empty($adminArchiveSnapshot)) {
+            app()->terminating(static function () use ($adminArchiveEvent, $adminArchiveSnapshot, $alreadyNotifiedArchivedAdminId) {
+                try {
+                    TicketNotificationService::notifyActiveAdminsOfPrivilegeChange(
+                        $adminArchiveEvent,
+                        $adminArchiveSnapshot,
+                        $alreadyNotifiedArchivedAdminId
+                    );
+                } catch (\Throwable $secEx) {
+                    \Illuminate\Support\Facades\Log::warning("UserController@destroy: Admin archive security broadcast failed: " . $secEx->getMessage());
+                }
+            });
+        }
 
         $this->syncStaffWithBot();
 

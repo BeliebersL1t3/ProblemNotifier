@@ -829,6 +829,14 @@ class EmployeeSheetService
         $updated = 0;
         $hashedCount = 0;
         $appliedChanges = [];
+        $pendingAdminAlerts = [];
+
+        // Snapshot active admins BEFORE any DB mutation so revoked/deactivated admins
+        // and all active admins before sync are guaranteed to be notified using pre-change contacts
+        $adminSnapshotBeforeSync = TicketNotificationService::snapshotActiveAdmins();
+        $actingAdminName = $actingAdmin ? ($actingAdmin->staff_name ?: $actingAdmin->name) : 'Administrator';
+        $actorIp = request()?->ip() ?: '-';
+        $alertTimestamp = Carbon::now('Asia/Jakarta')->format('d M Y, H:i') . ' WIB';
 
         foreach ($plannedOps as $idx => $op) {
             $rowNumber = $op['row'];
@@ -857,6 +865,76 @@ class EmployeeSheetService
                     $existingUser = $op['existing_user'];
                     $before = $op['before'];
                     $passwordChanged = ($op['password_action'] === 'hash_plain');
+
+                    $wasAdmin = ($before['role'] === 'admin');
+                    $wasActive = (bool) $before['is_active'] && !$existingUser->trashed();
+                    $isNowAdmin = ($op['role'] === 'admin');
+                    $isNowActive = (bool) $op['target_active'];
+
+                    $rowAdminEvent = null;
+                    $alreadyNotifiedAdminId = null;
+
+                    if ($wasAdmin && !$isNowAdmin) {
+                        $newRoleLabel = self::formatRoleLabel($op['role']);
+                        $rowAdminEvent = [
+                            'type'              => 'DEMOTED_FROM_ADMIN',
+                            'target_name'       => $before['staff_name'] ?: $before['name'],
+                            'target_email'      => $before['email'],
+                            'target_department' => $op['normalized_dept'] ?: ($before['department'] ?: 'Umum'),
+                            'change_detail'     => "Administrator → {$newRoleLabel}" . (!$isNowActive ? ' (sekaligus dinonaktifkan)' : ''),
+                            'actor_name'        => $actingAdminName,
+                            'actor_ip'          => $actorIp,
+                            'source'            => "Sync Google Spreadsheet (Baris #{$rowNumber})",
+                            'timestamp'         => $alertTimestamp,
+                        ];
+                    } elseif ($wasAdmin && $wasActive && !$isNowActive) {
+                        $rowAdminEvent = [
+                            'type'              => 'ADMIN_DEACTIVATED',
+                            'target_name'       => $before['staff_name'] ?: $before['name'],
+                            'target_email'      => $before['email'],
+                            'target_department' => $op['normalized_dept'] ?: ($before['department'] ?: 'Umum'),
+                            'change_detail'     => 'Status Administrator: Aktif → Nonaktif (Diarsipkan)',
+                            'actor_name'        => $actingAdminName,
+                            'actor_ip'          => $actorIp,
+                            'source'            => "Sync Google Spreadsheet (Baris #{$rowNumber})",
+                            'timestamp'         => $alertTimestamp,
+                        ];
+                    } elseif (!$wasAdmin && $isNowAdmin) {
+                        $oldRoleLabel = self::formatRoleLabel($before['role']);
+                        $rowAdminEvent = [
+                            'type'              => 'PROMOTED_TO_ADMIN',
+                            'target_name'       => $rawName,
+                            'target_email'      => $op['target_email'],
+                            'target_department' => $op['normalized_dept'] ?: ($before['department'] ?: 'Umum'),
+                            'change_detail'     => "{$oldRoleLabel} → Administrator",
+                            'actor_name'        => $actingAdminName,
+                            'actor_ip'          => $actorIp,
+                            'source'            => "Sync Google Spreadsheet (Baris #{$rowNumber})",
+                            'timestamp'         => $alertTimestamp,
+                        ];
+                    }
+
+                    // Notify demoted/deactivated Admin BEFORE mutating their role/status in DB (using original pre-change contacts!)
+                    if ($rowAdminEvent !== null && in_array($rowAdminEvent['type'], ['DEMOTED_FROM_ADMIN', 'ADMIN_DEACTIVATED'], true)) {
+                        try {
+                            TicketNotificationService::notifyTargetAdminBeforeRevocation($rowAdminEvent, [
+                                'id'              => (int) $existingUser->id,
+                                'name'            => (string) ($before['staff_name'] ?: $before['name']),
+                                'whatsapp_number' => $before['whatsapp_number'] ?? null,
+                                'email'           => $before['email'] ?? null,
+                            ]);
+                            $alreadyNotifiedAdminId = (int) $existingUser->id;
+                        } catch (\Throwable $preEx) {
+                            Log::warning("EmployeeSheetService: Pre-revocation admin alert failed for user #{$existingUser->id}: " . $preEx->getMessage());
+                        }
+                    }
+
+                    if ($rowAdminEvent !== null) {
+                        $pendingAdminAlerts[] = [
+                            'event'               => $rowAdminEvent,
+                            'already_notified_id' => $alreadyNotifiedAdminId,
+                        ];
+                    }
 
                     $existingUser->name = $rawName;
                     $existingUser->staff_name = $rawName;
@@ -934,6 +1012,23 @@ class EmployeeSheetService
                     ]);
                     $newUser->save();
                     $created++;
+
+                    if ($op['role'] === 'admin') {
+                        $pendingAdminAlerts[] = [
+                            'event'               => [
+                                'type'              => 'NEW_ADMIN',
+                                'target_name'       => $newUser->staff_name ?: $newUser->name,
+                                'target_email'      => $newUser->email,
+                                'target_department' => $newUser->department ?: 'Umum',
+                                'change_detail'     => 'Akun baru dibuat dengan peran Administrator',
+                                'actor_name'        => $actingAdminName,
+                                'actor_ip'          => $actorIp,
+                                'source'            => "Sync Google Spreadsheet (Baris #{$rowNumber})",
+                                'timestamp'         => $alertTimestamp,
+                            ],
+                            'already_notified_id' => null,
+                        ];
+                    }
 
                     if (isset($changes[$idx])) {
                         $changeItem = $changes[$idx];
@@ -1042,9 +1137,22 @@ class EmployeeSheetService
             }
         }
 
-        // Run Audit Sheet batch append & WhatsApp bot roster refresh on app termination (non-blocking, no closure serialization of CurlHandle)
+        // Run Audit Sheet batch append, Admin security broadcast, & WhatsApp bot roster refresh on app termination
         $hasRosterChanges = ($created > 0 || $updated > 0);
-        app()->terminating(static function () use ($pendingAuditLogs, $hasRosterChanges) {
+        app()->terminating(static function () use ($pendingAuditLogs, $hasRosterChanges, $pendingAdminAlerts, $adminSnapshotBeforeSync) {
+            if (!empty($pendingAdminAlerts) && !empty($adminSnapshotBeforeSync)) {
+                foreach ($pendingAdminAlerts as $alertItem) {
+                    try {
+                        TicketNotificationService::notifyActiveAdminsOfPrivilegeChange(
+                            $alertItem['event'],
+                            $adminSnapshotBeforeSync,
+                            $alertItem['already_notified_id'] ?? null
+                        );
+                    } catch (\Throwable $secEx) {
+                        Log::warning('EmployeeSheetService: Background admin security alert failed: ' . $secEx->getMessage());
+                    }
+                }
+            }
             if (!empty($pendingAuditLogs)) {
                 try {
                     app(AuditSheetService::class)->appendLogsBatch($pendingAuditLogs);

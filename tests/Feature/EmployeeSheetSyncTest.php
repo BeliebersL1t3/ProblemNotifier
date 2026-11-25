@@ -17,6 +17,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class EmployeeSheetSyncTest extends TestCase
@@ -503,5 +504,177 @@ class EmployeeSheetSyncTest extends TestCase
         $this->assertCount(1, $applied['changes']);
         $this->assertEquals('admin', $staff->fresh()->role);
         $this->assertEquals(1, $batchUpdateCalls);
+    }
+
+    public function test_demoted_admin_receives_pre_revocation_whatsapp_alert_at_original_phone_even_if_phone_changed_in_sheet(): void
+    {
+        $actingAdmin = User::factory()->create([
+            'name'            => 'Super Admin',
+            'staff_name'      => 'Super Admin',
+            'email'           => 'superadmin@telunasresorts.com',
+            'whatsapp_number' => '628111000111',
+            'role'            => 'admin',
+            'department'      => 'IT',
+            'is_active'       => true,
+        ]);
+
+        $existingHash = Hash::make('AdminPass2026!');
+        $victimAdmin = User::factory()->create([
+            'name'            => 'Admin Korban',
+            'staff_name'      => 'Admin Korban',
+            'email'           => 'korban@telunasresorts.com',
+            'whatsapp_number' => '628122000222',
+            'role'            => 'admin',
+            'department'      => 'HR',
+            'is_active'       => true,
+            'password'        => $existingHash,
+        ]);
+
+        // Track role in DB at the exact instant the pre-revocation HTTP call fires!
+        $victimRoleAtNotifTime = null;
+        $notifiedPhones = [];
+
+        Http::fake(function ($request) use ($victimAdmin, &$victimRoleAtNotifTime, &$notifiedPhones) {
+            if (str_contains($request->url(), '/notify-direct')) {
+                $phone = $request['phone'] ?? '';
+                $notifiedPhones[] = $phone;
+                if ($phone === '628122000222') {
+                    // Verify victim is STILL 'admin' in DB when they receive the pre-revocation alert!
+                    $victimRoleAtNotifTime = User::find($victimAdmin->id)?->role;
+                }
+            }
+            return Http::response(['success' => true], 200);
+        });
+
+        $mockSheets = $this->createMock(Sheets::class);
+        $mockSpreadsheets = $this->createMock(Spreadsheets::class);
+        $mockValues = $this->createMock(SpreadsheetsValues::class);
+        $mockSheets->spreadsheets = $mockSpreadsheets;
+        $mockSheets->spreadsheets_values = $mockValues;
+
+        $meta = new Spreadsheet();
+        $sheetObj = new Sheet();
+        $props = new SheetProperties();
+        $props->setTitle('Data Karyawan');
+        $sheetObj->setProperties($props);
+        $meta->setSheets([$sheetObj]);
+        $mockSpreadsheets->method('get')->willReturn($meta);
+
+        // Attacker demotes Admin Korban to staff AND tries to change their phone number to silence alert!
+        $valRange = new ValueRange();
+        $valRange->setValues([
+            ['Admin Korban', 'HR', '081999888777', 'korban@telunasresorts.com', $existingHash, 'staff', '', 'Aktif', ''],
+        ]);
+        $mockValues->method('get')->willReturn($valRange);
+        $mockValues->method('batchUpdate')->willReturn(true);
+
+        $service = new EmployeeSheetService();
+        $service->setSpreadsheetId('1TEST_MOCK_EMPLOYEE_SHEET_ID_ABCD1234567890');
+        $reflection = new \ReflectionClass($service);
+        $prop = $reflection->getProperty('sheets');
+        $prop->setAccessible(true);
+        $prop->setValue($service, $mockSheets);
+
+        $result = $service->syncEmployeesFromSheet($actingAdmin, false);
+        // Trigger terminating callbacks (as HTTP Kernel::terminate does)
+        app()->terminate();
+
+        $this->assertTrue($result['success']);
+        // 1. Victim was STILL admin in DB at the moment they received the WhatsApp alert!
+        $this->assertEquals('admin', $victimRoleAtNotifTime);
+        // 2. Final role in DB is now staff
+        $this->assertEquals('staff', $victimAdmin->fresh()->role);
+        // 3. Original phone (628122000222) received alert (NOT silenced by phone swap to 6281999888777)
+        $this->assertContains('628122000222', $notifiedPhones);
+        // 4. Other active admin (628111000111) also received the security alert
+        $this->assertContains('628111000111', $notifiedPhones);
+        // 5. Victim did not receive duplicate alerts
+        $this->assertEquals(1, count(array_filter($notifiedPhones, fn ($p) => $p === '628122000222')));
+    }
+
+    public function test_web_demotion_and_archive_notify_admin_before_revocation_with_email_fallback_when_bot_offline(): void
+    {
+        Mail::fake();
+
+        // Reset Http fake from setUp() so we cleanly simulate WhatsApp bot offline (HTTP 500) -> must fallback to Email!
+        Http::swap(new \Illuminate\Http\Client\Factory());
+        Http::fake([
+            '*' => Http::response(['error' => 'Bot offline'], 500),
+        ]);
+
+        $actingAdmin = User::factory()->create([
+            'name'            => 'Primary Admin',
+            'staff_name'      => 'Primary Admin',
+            'email'           => 'primary.admin@telunasresorts.com',
+            'whatsapp_number' => '081111222333',
+            'role'            => 'admin',
+            'department'      => 'IT',
+            'is_active'       => true,
+        ]);
+
+        $demotedAdmin = User::factory()->create([
+            'name'            => 'Second Admin',
+            'staff_name'      => 'Second Admin',
+            'email'           => 'second.admin@telunasresorts.com',
+            'whatsapp_number' => '081222333444',
+            'role'            => 'admin',
+            'department'      => 'HR',
+            'is_active'       => true,
+        ]);
+
+        // Mock EmployeeSheetService so update() doesn't call real Google API
+        $mockSheetService = $this->createMock(EmployeeSheetService::class);
+        $mockSheetService->method('syncSingleEmployeeToSheet')->willReturn(true);
+        $this->app->instance(EmployeeSheetService::class, $mockSheetService);
+
+        // Demote Second Admin from admin -> department via Web endpoint
+        $res = $this->actingAs($actingAdmin)->putJson("/api/users/{$demotedAdmin->id}", [
+            'name'            => 'Second Admin',
+            'staff_name'      => 'Second Admin',
+            'email'           => 'second.admin@telunasresorts.com',
+            'role'            => 'department',
+            'department'      => 'HR',
+            'subdivision'     => 'HR',
+            'whatsapp_number' => '081222333444',
+            'is_active'       => true,
+        ]);
+
+        $res->assertStatus(200);
+        $this->assertEquals('department', $demotedAdmin->fresh()->role);
+
+        // Also test archiving a third Admin via DELETE /api/users/{id}
+        $thirdAdmin = User::factory()->create([
+            'name'            => 'Third Admin',
+            'staff_name'      => 'Third Admin',
+            'email'           => 'third.admin@telunasresorts.com',
+            'whatsapp_number' => '081333444555',
+            'role'            => 'admin',
+            'department'      => 'IT',
+            'is_active'       => true,
+        ]);
+
+        $delRes = $this->actingAs($actingAdmin)->deleteJson("/api/users/{$thirdAdmin->id}");
+        $delRes->assertStatus(200);
+        $this->assertTrue($thirdAdmin->fresh()->trashed());
+
+        // Verify fallback email delivery when WA bot is offline
+        $delivery = \App\Services\TicketNotificationService::notifyTargetAdminBeforeRevocation([
+            'type'              => 'DEMOTED_FROM_ADMIN',
+            'target_name'       => 'Second Admin',
+            'target_email'      => 'second.admin@telunasresorts.com',
+            'target_department' => 'HR',
+            'change_detail'     => 'Administrator → Departemen / Staff',
+            'actor_name'        => 'Primary Admin',
+            'actor_ip'          => '127.0.0.1',
+            'source'            => 'Web Manajemen User',
+        ], [
+            'id'              => $demotedAdmin->id,
+            'name'            => 'Second Admin',
+            'whatsapp_number' => '081222333444',
+            'email'           => 'second.admin@telunasresorts.com',
+        ]);
+
+        $this->assertFalse($delivery['whatsapp_sent']);
+        $this->assertTrue($delivery['email_sent']);
     }
 }
