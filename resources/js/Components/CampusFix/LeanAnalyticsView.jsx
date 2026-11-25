@@ -2085,8 +2085,8 @@ export function LeanAnalyticsView({
                             </span>
                             <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                 {isEn
-                                    ? `${stats.withEtaCount} ticket(s) tracked by 1h Group / 3h Owner escalation timer in this period`
-                                    : `${stats.withEtaCount} tiket terpantau timer eskalasi otomatis (1j Grup / 3j Owner) pada periode ini`}
+                                    ? `${stats.withEtaCount} ticket(s) tracked by 1h Supervisor / 3h Owner escalation timer in this period`
+                                    : `${stats.withEtaCount} tiket terpantau timer eskalasi otomatis (1j Supervisor / 3j Owner) pada periode ini`}
                             </p>
                         </div>
                     </div>

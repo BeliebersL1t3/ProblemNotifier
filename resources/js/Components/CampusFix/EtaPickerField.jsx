@@ -166,7 +166,7 @@ export function getAutoTimerBadgeInfo(issue, nowMs = Date.now(), isEn = false) {
             subLabel = isEn ? `Owner alert (${ownerCount}x)` : `Eskalasi Owner (${ownerCount}x)`;
         } else if (groupCount > 0) {
             state = 'resolved_group_escalated';
-            subLabel = isEn ? `Group alert (${groupCount}x)` : `Reminder Grup (${groupCount}x)`;
+            subLabel = isEn ? `Supervisor alert (${groupCount}x)` : `Eskalasi Supervisor (${groupCount}x)`;
         }
 
         const primaryLabel = isEn ? `Solved • ${totalDur}` : `Selesai • ${totalDur}`;
@@ -233,7 +233,7 @@ export function getAutoTimerBadgeInfo(issue, nowMs = Date.now(), isEn = false) {
     if (idleMs >= GROUP_ESCALATION_MS) {
         const remOwnerMs = Math.max(60000, OWNER_ESCALATION_MS - idleMs);
         const remOwner = formatDurationShort(remOwnerMs, isEn);
-        const primaryLabel = isEn ? 'Group Alert (1h+)' : 'Reminder Grup (1j+)';
+        const primaryLabel = isEn ? 'Supervisor Escalated (1h+)' : 'Eskalasi Supervisor (1j+)';
         const subLabel = `${remOwner} → Owner`;
         return {
             state: 'group_escalated',
@@ -253,7 +253,7 @@ export function getAutoTimerBadgeInfo(issue, nowMs = Date.now(), isEn = false) {
     const remGroupMs = Math.max(60000, GROUP_ESCALATION_MS - idleMs);
     const remGroup = formatDurationShort(remGroupMs, isEn);
     const isWarningSoon = remGroupMs <= 15 * 60000;
-    const primaryLabel = isEn ? `${remGroup} → Group` : `${remGroup} → Grup`;
+    const primaryLabel = `${remGroup} → Supervisor`;
     const subLabel = status === 'open'
         ? (isEn ? 'Waiting first update' : 'Menunggu respon')
         : (isEn ? 'Auto progress timer' : 'Timer progres aktif');
