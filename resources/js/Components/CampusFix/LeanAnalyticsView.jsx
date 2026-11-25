@@ -70,7 +70,6 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { getEtaBadgeInfo, formatEtaDisplayWib } from '@/Components/CampusFix/EtaPickerField';
-import { resolveIssueResortAndZone } from '@/constants/locations';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuth } from '@/hooks/useAuth';
 import { ExportPdfModal } from '@/Components/CampusFix/ExportPdfModal';
@@ -146,40 +145,25 @@ const CustomParetoTooltip = ({ active, payload }) => {
     );
 };
 
-// Custom Tooltip for Hotspot: filters out urgency levels with 0 count
-const CustomHotspotTooltip = ({ active, payload, label }) => {
-    const { lang } = useLanguage();
-    const isEn = lang === 'en';
-    if (!active || !payload || !payload.length) return null;
-    const activeItems = payload.filter((item) => Number(item.value) > 0);
-    const total = payload[0]?.payload?.total || 0;
-
-    return (
-        <div className="bg-slate-900/95 border border-slate-700/80 rounded-lg p-2.5 shadow-xl text-xs min-w-[150px] backdrop-blur-sm">
-            <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-800">
-                <span className="font-bold text-white">{label}</span>
-                <span className="text-[10px] text-slate-400">Total: {total}</span>
-            </div>
-            {activeItems.length > 0 ? (
-                <div className="space-y-1">
-                    {activeItems.map((item) => (
-                        <div key={item.dataKey} className="flex items-center justify-between gap-4">
-                            <span className="flex items-center gap-1.5 text-slate-300">
-                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color || item.fill }} />
-                                {item.name || item.dataKey}
-                            </span>
-                            <span className="font-bold text-white">{item.value}</span>
-                        </div>
-                    ))}
-                </div>
-            ) : (
-                <p className="text-[11px] text-slate-400">{isEn ? 'No incidents' : 'Tidak ada insiden'}</p>
-            )}
-            <div className="pt-1.5 mt-1.5 border-t border-slate-800/80 text-[10px] text-sky-400 font-medium">
-                {isEn ? '💡 Click bar to view ticket details' : '💡 Klik balok untuk lihat detail tiket'}
-            </div>
-        </div>
-    );
+// Format duration in minutes into concise readable string (e.g. "45 mnt", "3j 20m", "2h 5j")
+const formatDurationCompact = (minutes, isEn = false) => {
+    if (minutes === null || minutes === undefined || Number.isNaN(minutes) || minutes < 0) {
+        return '-';
+    }
+    const totalMins = Math.round(minutes);
+    if (totalMins < 60) {
+        return isEn ? `${totalMins}m` : `${totalMins} mnt`;
+    }
+    const hours = Math.floor(totalMins / 60);
+    const remMins = totalMins % 60;
+    if (hours < 24) {
+        if (remMins === 0) return isEn ? `${hours}h` : `${hours} jam`;
+        return isEn ? `${hours}h ${remMins}m` : `${hours}j ${remMins}m`;
+    }
+    const days = Math.floor(hours / 24);
+    const remHours = hours % 24;
+    if (remHours === 0) return isEn ? `${days}d` : `${days} hari`;
+    return isEn ? `${days}d ${remHours}h` : `${days}h ${remHours}j`;
 };
 
 // Custom Tooltip for Department Workload
@@ -288,7 +272,7 @@ export function exportTelunasPdfReport({
     stats = {},
     timeLabel,
     deptTargetData = [],
-    hotspotList = [],
+    mttrByDept = [],
     lang = 'id',
 }) {
     const isEn = lang === 'en';
@@ -427,37 +411,39 @@ export function exportTelunasPdfReport({
 
     startY = doc.lastAutoTable.finalY + 8;
 
-    // 4. Table: Hotspot Lokasi Terbanyak
-    const hotspotRows = hotspotList.slice(0, 8).map((h, idx) => [
+    // 4. Table: Kecepatan Penyelesaian (MTTR) per Departemen
+    const mttrRows = (mttrByDept || []).slice(0, 8).map((d, idx) => [
         idx + 1,
-        h.location === 'Lainnya' && isEn ? 'Other' : h.location,
-        h.resort || '-',
-        h.total,
-        h.openCount,
-        h.openCount > 0 ? (isEn ? 'Needs Work' : 'Perlu Pengerjaan') : (isEn ? 'Clear' : 'Tuntas'),
+        d.department === 'Umum' && isEn ? 'General' : d.department,
+        d.solvedCount,
+        formatDurationCompact(d.avgMinutes, isEn),
+        formatDurationCompact(d.minMinutes, isEn),
+        formatDurationCompact(d.maxMinutes, isEn),
     ]);
 
-    autoTable(doc, {
-        startY: startY,
-        head: [
-            isEn
-                ? ['#', 'Location / Unit', 'Resort', 'Total Incidents', 'Unresolved', 'Area Status']
-                : ['#', 'Lokasi / Unit', 'Resort', 'Total Insiden', 'Isu Belum Selesai', 'Status Area'],
-        ],
-        body: hotspotRows,
-        theme: 'striped',
-        headStyles: { fillColor: [51, 65, 85], fontSize: 8, fontStyle: 'bold' },
-        bodyStyles: { fontSize: 8 },
-        columnStyles: {
-            0: { cellWidth: 10, halign: 'center' },
-            1: { cellWidth: 60 },
-            2: { cellWidth: 25, halign: 'center' },
-            3: { halign: 'center' },
-            4: { halign: 'center', textColor: [225, 29, 72], fontStyle: 'bold' },
-            5: { halign: 'center' },
-        },
-        margin: { left: 14, right: 14 },
-    });
+    if (mttrRows.length > 0) {
+        autoTable(doc, {
+            startY: startY,
+            head: [
+                isEn
+                    ? ['#', 'Department', 'Resolved', 'Avg. Time (MTTR)', 'Fastest', 'Slowest']
+                    : ['#', 'Departemen', 'Tiket Selesai', 'Rata-rata (MTTR)', 'Tercepat', 'Terlama'],
+            ],
+            body: mttrRows,
+            theme: 'striped',
+            headStyles: { fillColor: [51, 65, 85], fontSize: 8, fontStyle: 'bold' },
+            bodyStyles: { fontSize: 8 },
+            columnStyles: {
+                0: { cellWidth: 10, halign: 'center' },
+                1: { cellWidth: 55 },
+                2: { cellWidth: 25, halign: 'center' },
+                3: { halign: 'center', fontStyle: 'bold', textColor: [3, 105, 161] },
+                4: { halign: 'center', textColor: [21, 128, 61] },
+                5: { halign: 'center', textColor: [180, 83, 9] },
+            },
+            margin: { left: 14, right: 14 },
+        });
+    }
 
     startY = doc.lastAutoTable.finalY + 8;
 
@@ -622,8 +608,10 @@ export function LeanAnalyticsView({
         };
     }, [isDeptChartPickerOpen]);
 
-    // 5. Hotspot Location Modal
-    const [selectedLocationForModal, setSelectedLocationForModal] = useState(null);
+    // 5. Performance & Speed Multi-Mode (KPI 4 & Chart 4) + Detail Modal
+    const [perfMode, setPerfMode] = useState('mttr'); // 'mttr' | 'top_resolver' | 'oldest_active'
+    const [chart4Mode, setChart4Mode] = useState('mttr_dept'); // 'mttr_dept' | 'top_workers'
+    const [selectedPerfModal, setSelectedPerfModal] = useState(null);
     const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
     const [isExportPdfModalOpen, setIsExportPdfModalOpen] = useState(false);
     const [nowMs, setNowMs] = useState(() => Date.now());
@@ -1028,39 +1016,210 @@ export function LeanAnalyticsView({
         };
     }, [filteredIssues, departments, stats.total]);
 
-    // Hotspot Lokasi Terbanyak
-    const hotspotList = useMemo(() => {
-        const locMap = {};
+    // Performa & Kecepatan Operasional (100% Akurat: MTTR, Top Teknisi/Staf, Isu Aktif Terlama)
+    const performanceMetrics = useMemo(() => {
+        const resolvedWithDuration = [];
+        const deptMttrMap = {};
+        const resolverMap = {};
+        const oldestActiveList = [];
+
+        const extractWorkerNames = (issue) => {
+            const rawList = [];
+            if (Array.isArray(issue.final_workers) && issue.final_workers.length > 0) {
+                rawList.push(...issue.final_workers);
+            } else if (issue.resolved_by_name) {
+                rawList.push(...String(issue.resolved_by_name).split(/[,&]/));
+            } else if (Array.isArray(issue.active_workers) && issue.active_workers.length > 0) {
+                rawList.push(...issue.active_workers);
+            } else if (issue.claimed_by_name) {
+                rawList.push(...String(issue.claimed_by_name).split(/[,&]/));
+            }
+
+            const seen = new Set();
+            const cleaned = [];
+            rawList.forEach((raw) => {
+                const name = String(raw || '').trim();
+                if (!name || name === '-' || name.toLowerCase() === 'null') return;
+                const key = name.toLowerCase();
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    cleaned.push(name);
+                }
+            });
+            return cleaned;
+        };
 
         filteredIssues.forEach((issue) => {
-            const loc = (issue.location || 'Lainnya').trim() || 'Lainnya';
-            if (!locMap[loc]) {
-                const locInfo = resolveIssueResortAndZone(issue);
-                locMap[loc] = {
-                    location: loc,
-                    resort: locInfo.resort || (loc.toLowerCase().includes('tbr') ? 'TBR' : 'TPI'),
-                    total: 0,
-                    openCount: 0,
-                    resolvedCount: 0,
-                    issues: [],
-                };
-            }
-            locMap[loc].total += 1;
+            const createdMs = issue.created_at ? new Date(issue.created_at).getTime() : NaN;
+            const targetDepts = Array.isArray(issue.target_departments) && issue.target_departments.length > 0
+                ? issue.target_departments
+                : [issue.target_departments || 'Umum'];
+
             if (issue.status === 'resolved') {
-                locMap[loc].resolvedCount += 1;
+                const rawRes = issue.resolved_at || issue.solved_at || issue.updated_at;
+                const resolvedMs = rawRes ? new Date(rawRes).getTime() : NaN;
+                const validDuration = !Number.isNaN(createdMs) && !Number.isNaN(resolvedMs) && resolvedMs >= createdMs;
+                const durationMinutes = validDuration ? (resolvedMs - createdMs) / 60000 : null;
+
+                if (durationMinutes !== null) {
+                    resolvedWithDuration.push({ issue, durationMinutes });
+                }
+
+                // Aggregate MTTR per target department
+                targetDepts.forEach((d) => {
+                    const deptName = (d || 'Umum').trim() || 'Umum';
+                    if (!deptMttrMap[deptName]) {
+                        deptMttrMap[deptName] = {
+                            department: deptName,
+                            totalMinutes: 0,
+                            timedCount: 0,
+                            minMinutes: Infinity,
+                            maxMinutes: 0,
+                            solvedCount: 0,
+                            pendingCount: 0,
+                            issues: [],
+                        };
+                    }
+                    deptMttrMap[deptName].solvedCount += 1;
+                    deptMttrMap[deptName].issues.push(issue);
+                    if (issue.pending_reason) {
+                        deptMttrMap[deptName].pendingCount += 1;
+                    }
+                    if (durationMinutes !== null) {
+                        deptMttrMap[deptName].totalMinutes += durationMinutes;
+                        deptMttrMap[deptName].timedCount += 1;
+                        if (durationMinutes < deptMttrMap[deptName].minMinutes) {
+                            deptMttrMap[deptName].minMinutes = durationMinutes;
+                        }
+                        if (durationMinutes > deptMttrMap[deptName].maxMinutes) {
+                            deptMttrMap[deptName].maxMinutes = durationMinutes;
+                        }
+                    }
+                });
+
+                // Aggregate Top Resolvers (Technicians / Staff)
+                const workers = extractWorkerNames(issue);
+                workers.forEach((workerName) => {
+                    const key = workerName.toLowerCase();
+                    if (!resolverMap[key]) {
+                        resolverMap[key] = {
+                            name: workerName,
+                            shortName: workerName.length > 16 ? `${workerName.substring(0, 16)}...` : workerName,
+                            resolvedCount: 0,
+                            activeCount: 0,
+                            totalMinutes: 0,
+                            timedCount: 0,
+                            issues: [],
+                        };
+                    }
+                    resolverMap[key].resolvedCount += 1;
+                    resolverMap[key].issues.push(issue);
+                    if (durationMinutes !== null) {
+                        resolverMap[key].totalMinutes += durationMinutes;
+                        resolverMap[key].timedCount += 1;
+                    }
+                });
             } else {
-                locMap[loc].openCount += 1;
+                // Active (unresolved) issues
+                if (!Number.isNaN(createdMs)) {
+                    const ageMinutes = Math.max(0, (nowMs - createdMs) / 60000);
+                    oldestActiveList.push({ issue, ageMinutes });
+                }
+
+                // Count pending issues per dept for MTTR tooltip context
+                if (issue.status === 'pending') {
+                    targetDepts.forEach((d) => {
+                        const deptName = (d || 'Umum').trim() || 'Umum';
+                        if (deptMttrMap[deptName]) {
+                            deptMttrMap[deptName].pendingCount += 1;
+                        }
+                    });
+                }
+
+                // Track active workload for workers
+                const activeWorkers = extractWorkerNames(issue);
+                activeWorkers.forEach((workerName) => {
+                    const key = workerName.toLowerCase();
+                    if (resolverMap[key]) {
+                        resolverMap[key].activeCount += 1;
+                    }
+                });
             }
-            locMap[loc].issues.push(issue);
         });
 
-        return Object.values(locMap).sort((a, b) => {
-            if (b.total !== a.total) return b.total - a.total;
-            return b.openCount - a.openCount;
-        });
-    }, [filteredIssues]);
+        // Sort resolved tickets by duration descending (slowest first for inspection)
+        resolvedWithDuration.sort((a, b) => b.durationMinutes - a.durationMinutes);
 
-    const topHotspot = hotspotList[0] || null;
+        const resolvedTimedCount = resolvedWithDuration.length;
+        const totalDurationMins = resolvedWithDuration.reduce((sum, item) => sum + item.durationMinutes, 0);
+        const avgMttrMinutes = resolvedTimedCount > 0 ? totalDurationMins / resolvedTimedCount : null;
+        const minMttrMinutes = resolvedTimedCount > 0 ? resolvedWithDuration[resolvedTimedCount - 1].durationMinutes : null;
+        const maxMttrMinutes = resolvedTimedCount > 0 ? resolvedWithDuration[0].durationMinutes : null;
+
+        // Build per-department MTTR array
+        const mttrByDept = Object.values(deptMttrMap)
+            .filter((d) => d.timedCount > 0)
+            .map((d) => {
+                const avgMins = d.totalMinutes / d.timedCount;
+                const avgHours = Number((avgMins / 60).toFixed(1));
+                let statusType = 'normal';
+                let speedStatus = isEn ? 'Standard' : 'Normal';
+                if (avgHours <= 4) {
+                    statusType = 'fast';
+                    speedStatus = isEn ? 'Fast' : 'Cepat';
+                } else if (d.pendingCount > 0 && avgHours > 12) {
+                    statusType = 'pending_delay';
+                    speedStatus = isEn ? 'Pending Delay' : 'Terkendala Pending';
+                } else if (avgHours > 24) {
+                    statusType = 'slow';
+                    speedStatus = isEn ? 'Needs Attention' : 'Perlu Evaluasi';
+                }
+                const displayDept = formatDeptDisplay(d.department);
+                return {
+                    department: displayDept,
+                    rawDepartment: d.department,
+                    shortName: displayDept.length > 15 ? `${displayDept.substring(0, 15)}...` : displayDept,
+                    avgHours,
+                    avgMinutes: avgMins,
+                    minMinutes: d.minMinutes === Infinity ? null : d.minMinutes,
+                    maxMinutes: d.maxMinutes,
+                    solvedCount: d.solvedCount,
+                    pendingCount: d.pendingCount,
+                    statusType,
+                    speedStatus,
+                    issues: d.issues,
+                };
+            })
+            .sort((a, b) => b.avgHours - a.avgHours);
+
+        // Build Top Resolver ranking
+        const resolverList = Object.values(resolverMap)
+            .filter((w) => w.resolvedCount > 0)
+            .map((w) => ({
+                ...w,
+                avgMinutes: w.timedCount > 0 ? w.totalMinutes / w.timedCount : null,
+            }))
+            .sort((a, b) => {
+                if (b.resolvedCount !== a.resolvedCount) return b.resolvedCount - a.resolvedCount;
+                return (a.avgMinutes ?? Infinity) - (b.avgMinutes ?? Infinity);
+            });
+
+        // Sort oldest active issues descending (longest waiting first)
+        oldestActiveList.sort((a, b) => b.ageMinutes - a.ageMinutes);
+        const activeOver24hCount = oldestActiveList.filter((item) => item.ageMinutes >= 24 * 60).length;
+
+        return {
+            resolvedWithDuration,
+            resolvedTimedCount,
+            avgMttrMinutes,
+            minMttrMinutes,
+            maxMttrMinutes,
+            mttrByDept,
+            resolverList,
+            oldestActiveList,
+            activeOver24hCount,
+        };
+    }, [filteredIssues, nowMs, isEn]);
 
     // -------------------------------------------------------------
     // Executive Visual Charts Data
@@ -1300,19 +1459,14 @@ export function LeanAnalyticsView({
         setDeptChartIncludeZero(false);
     }, []);
 
-    // 4. Top Hotspot Locations Data
-    const hotspotChartData = useMemo(() => {
-        return (hotspotList || [])
-            .slice(0, 6)
-            .map((h) => ({
-                location: h.location,
-                shortName: h.location.length > 16 ? `${h.location.substring(0, 16)}...` : h.location,
-                total: h.total,
-                resolved: h.resolvedCount,
-                open: h.openCount,
-            }))
-            .reverse();
-    }, [hotspotList]);
+    // 4. Chart 4 Data: MTTR per Department & Top Resolvers (Technicians / Staff)
+    const mttrChartData = useMemo(() => {
+        return (performanceMetrics.mttrByDept || []).slice(0, 6);
+    }, [performanceMetrics.mttrByDept]);
+
+    const topWorkersChartData = useMemo(() => {
+        return (performanceMetrics.resolverList || []).slice(0, 6);
+    }, [performanceMetrics.resolverList]);
 
     const timeLabels = useMemo(() => {
         const base = isEn
@@ -1703,60 +1857,180 @@ export function LeanAnalyticsView({
                     );
                 })()}
 
-                {/* KPI 4: Lokasi Terbanyak yang Memiliki Laporan */}
-                <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => topHotspot && setSelectedLocationForModal(topHotspot)}
-                    className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden transition-all cursor-pointer group flex flex-col justify-between liquid-glass-card liquid-glass-interactive ${
-                        isDark ? 'border-slate-700/80 hover:border-amber-500/50' : 'border-slate-200 hover:border-amber-400'
-                    }`}
-                    title={topHotspot ? (isEn ? `Click for ticket details at ${topHotspot.location}` : `Klik untuk rincian tiket di ${topHotspot.location}`) : undefined}
-                >
-                    <div>
-                        <div className="flex items-center justify-between">
-                            <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                {isEn ? 'Top Location' : 'Lokasi Terbanyak'}
-                            </span>
-                            <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                <MapPin className="w-4 h-4" />
-                            </div>
-                        </div>
-                        <div className="mt-2">
-                            <span 
-                                title={topHotspot ? topHotspot.location : undefined}
-                                className={`text-sm sm:text-base font-bold line-clamp-2 leading-snug block group-hover:underline ${isDark ? 'text-amber-300' : 'text-amber-700'}`}
-                            >
-                                {topHotspot ? `#1 ${topHotspot.location.replace(/\s*\(GPS:.*$/i, '')}` : '-'}
-                            </span>
-                            <div className="mt-1 flex items-baseline gap-2">
-                                <span className={`text-xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                    {topHotspot ? `${topHotspot.total} ${isEn ? 'Incidents' : 'Insiden'}` : (isEn ? '0 Incidents' : '0 Insiden')}
-                                </span>
-                                {topHotspot && (
-                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
-                                        topHotspot.resort === 'TBR'
-                                            ? isDark
-                                                ? 'bg-amber-950/70 border-amber-800/60 text-amber-300'
-                                                : 'bg-amber-100 border-amber-300 text-amber-800'
-                                            : isDark
-                                            ? 'bg-emerald-950/70 border-emerald-800/60 text-emerald-300'
-                                            : 'bg-emerald-100 border-emerald-300 text-emerald-800'
-                                    }`}>
-                                        {topHotspot.resort || 'Resort'}
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                    <p className={`text-[11px] mt-2 truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                        {topHotspot
+                {/* KPI 4: Performa & Kecepatan Operasional (Multi-Mode: MTTR / Top Teknisi / Isu Terlama) */}
+                {(() => {
+                    let headline = '-';
+                    let bigValue = '-';
+                    let badgeText = '';
+                    let badgeStyle = '';
+                    let subInfo = '';
+                    let accentText = isDark ? 'text-amber-300' : 'text-amber-700';
+                    let hoverBorder = isDark ? 'border-slate-700/80 hover:border-amber-500/50' : 'border-slate-200 hover:border-amber-400';
+                    let canOpenModal = false;
+
+                    const handleOpenPerfModal = () => {
+                        if (perfMode === 'mttr' && performanceMetrics.resolvedWithDuration.length > 0) {
+                            setSelectedPerfModal({
+                                title: isEn ? 'Resolution Speed Breakdown (MTTR)' : 'Rincian Kecepatan Penyelesaian (MTTR)',
+                                subtitle: isEn
+                                    ? `Avg: ${formatDurationCompact(performanceMetrics.avgMttrMinutes, true)} across ${performanceMetrics.resolvedTimedCount} resolved tickets (sorted slowest first)`
+                                    : `Rata-rata: ${formatDurationCompact(performanceMetrics.avgMttrMinutes, false)} dari ${performanceMetrics.resolvedTimedCount} tiket selesai (diurutkan terlama)`,
+                                accent: 'sky',
+                                items: performanceMetrics.resolvedWithDuration.map((r) => ({
+                                    issue: r.issue,
+                                    durationLabel: `${isEn ? 'Resolved in' : 'Selesai dlm'} ${formatDurationCompact(r.durationMinutes, isEn)}`,
+                                })),
+                            });
+                        } else if (perfMode === 'top_resolver' && performanceMetrics.resolverList.length > 0) {
+                            const topW = performanceMetrics.resolverList[0];
+                            setSelectedPerfModal({
+                                title: isEn ? `Resolved by ${topW.name}` : `Tiket Diselesaikan: ${topW.name}`,
+                                subtitle: isEn
+                                    ? `${topW.resolvedCount} tickets resolved${topW.avgMinutes !== null ? ` • Avg ${formatDurationCompact(topW.avgMinutes, true)}` : ''}`
+                                    : `${topW.resolvedCount} tiket tuntas${topW.avgMinutes !== null ? ` • Rata-rata ${formatDurationCompact(topW.avgMinutes, false)}` : ''}`,
+                                accent: 'emerald',
+                                items: topW.issues.map((iss) => {
+                                    const createdMs = iss.created_at ? new Date(iss.created_at).getTime() : NaN;
+                                    const rawRes = iss.resolved_at || iss.solved_at || iss.updated_at;
+                                    const resMs = rawRes ? new Date(rawRes).getTime() : NaN;
+                                    const mins = !Number.isNaN(createdMs) && !Number.isNaN(resMs) && resMs >= createdMs ? (resMs - createdMs) / 60000 : null;
+                                    return {
+                                        issue: iss,
+                                        durationLabel: mins !== null ? formatDurationCompact(mins, isEn) : null,
+                                    };
+                                }),
+                            });
+                        } else if (perfMode === 'oldest_active' && performanceMetrics.oldestActiveList.length > 0) {
+                            setSelectedPerfModal({
+                                title: isEn ? 'Oldest Unresolved Issues' : 'Daftar Isu Aktif Terlama',
+                                subtitle: isEn
+                                    ? `${performanceMetrics.oldestActiveList.length} active tickets (${performanceMetrics.activeOver24hCount} waiting > 24h)`
+                                    : `${performanceMetrics.oldestActiveList.length} tiket belum selesai (${performanceMetrics.activeOver24hCount} menunggu > 24 jam)`,
+                                accent: 'rose',
+                                items: performanceMetrics.oldestActiveList.map((o) => ({
+                                    issue: o.issue,
+                                    durationLabel: `${isEn ? 'Waiting' : 'Menunggu'} ${formatDurationCompact(o.ageMinutes, isEn)}`,
+                                })),
+                            });
+                        }
+                    };
+
+                    if (perfMode === 'mttr') {
+                        const hasData = performanceMetrics.resolvedTimedCount > 0;
+                        canOpenModal = hasData;
+                        accentText = isDark ? 'text-sky-300' : 'text-sky-700';
+                        hoverBorder = isDark ? 'border-slate-700/80 hover:border-sky-500/50' : 'border-slate-200 hover:border-sky-400';
+                        headline = isEn ? 'Avg. Resolution Time (MTTR)' : 'Rata-rata Durasi Selesai';
+                        bigValue = hasData ? formatDurationCompact(performanceMetrics.avgMttrMinutes, isEn) : '-';
+                        badgeText = `${performanceMetrics.resolvedTimedCount} ${isEn ? 'resolved' : 'tiket selesai'}`;
+                        badgeStyle = isDark ? 'bg-sky-950/80 border-sky-800/60 text-sky-300' : 'bg-sky-100 border-sky-300 text-sky-800';
+                        subInfo = hasData
                             ? (isEn
-                                ? `${topHotspot.openCount} unresolved • ${topHotspot.total - topHotspot.openCount} resolved (Click details)`
-                                : `${topHotspot.openCount} belum selesai • ${topHotspot.total - topHotspot.openCount} selesai (Klik rincian)`)
-                            : (isEn ? 'No incident data recorded' : 'Belum ada data insiden tercatat')}
-                    </p>
-                </div>
+                                ? `Fastest: ${formatDurationCompact(performanceMetrics.minMttrMinutes, true)} • Slowest: ${formatDurationCompact(performanceMetrics.maxMttrMinutes, true)} (Click)`
+                                : `Tercepat: ${formatDurationCompact(performanceMetrics.minMttrMinutes, false)} • Terlama: ${formatDurationCompact(performanceMetrics.maxMttrMinutes, false)} (Klik)`)
+                            : (isEn ? 'No resolved tickets in this period' : 'Belum ada tiket selesai pada periode ini');
+                    } else if (perfMode === 'top_resolver') {
+                        const topW = performanceMetrics.resolverList[0] || null;
+                        const rank2 = performanceMetrics.resolverList[1] || null;
+                        const rank3 = performanceMetrics.resolverList[2] || null;
+                        canOpenModal = Boolean(topW);
+                        accentText = isDark ? 'text-emerald-300' : 'text-emerald-700';
+                        hoverBorder = isDark ? 'border-slate-700/80 hover:border-emerald-500/50' : 'border-slate-200 hover:border-emerald-400';
+                        headline = topW ? `#1 ${topW.name}` : '-';
+                        bigValue = topW ? `${topW.resolvedCount} ${isEn ? 'Solved' : 'Selesai'}` : (isEn ? '0 Solved' : '0 Selesai');
+                        badgeText = topW && topW.avgMinutes !== null
+                            ? `Avg ${formatDurationCompact(topW.avgMinutes, isEn)}`
+                            : (isEn ? 'Top Staff' : 'Teraktif');
+                        badgeStyle = isDark ? 'bg-emerald-950/80 border-emerald-800/60 text-emerald-300' : 'bg-emerald-100 border-emerald-300 text-emerald-800';
+                        subInfo = (rank2 || rank3)
+                            ? `#2 ${rank2?.name || '-'}: ${rank2?.resolvedCount || 0} • #3 ${rank3?.name || '-'}: ${rank3?.resolvedCount || 0} (${isEn ? 'Click' : 'Klik'})`
+                            : (topW
+                                ? (isEn ? 'Most tickets resolved (Click details)' : 'Penyelesaian terbanyak (Klik rincian)')
+                                : (isEn ? 'No technician data recorded' : 'Belum ada data penyelesaian teknisi'));
+                    } else {
+                        const oldest = performanceMetrics.oldestActiveList[0] || null;
+                        canOpenModal = Boolean(oldest);
+                        accentText = oldest ? (isDark ? 'text-rose-300' : 'text-rose-700') : (isDark ? 'text-emerald-300' : 'text-emerald-700');
+                        hoverBorder = isDark ? 'border-slate-700/80 hover:border-rose-500/50' : 'border-slate-200 hover:border-rose-400';
+                        headline = oldest
+                            ? `#${oldest.issue.issue_code || oldest.issue.id} ${oldest.issue.title}`
+                            : (isEn ? 'All Tickets Resolved!' : 'Semua Tiket Tuntas!');
+                        bigValue = oldest ? formatDurationCompact(oldest.ageMinutes, isEn) : (isEn ? '0 Active' : '0 Aktif');
+                        badgeText = performanceMetrics.activeOver24hCount > 0
+                            ? `${performanceMetrics.activeOver24hCount} > 24${isEn ? 'h' : 'j'}`
+                            : (isEn ? 'All < 24h' : 'Semua < 24j');
+                        badgeStyle = performanceMetrics.activeOver24hCount > 0
+                            ? (isDark ? 'bg-rose-950/80 border-rose-800/60 text-rose-300' : 'bg-rose-100 border-rose-300 text-rose-800')
+                            : (isDark ? 'bg-emerald-950/80 border-emerald-800/60 text-emerald-300' : 'bg-emerald-100 border-emerald-300 text-emerald-800');
+                        subInfo = oldest
+                            ? (isEn
+                                ? `${performanceMetrics.oldestActiveList.length} unresolved tickets waiting (Click details)`
+                                : `${performanceMetrics.oldestActiveList.length} tiket belum selesai menunggu (Klik rincian)`)
+                            : (isEn ? 'No active backlog remaining' : 'Tidak ada antrean tiket aktif');
+                    }
+
+                    return (
+                        <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => canOpenModal && handleOpenPerfModal()}
+                            onKeyDown={(e) => {
+                                if ((e.key === 'Enter' || e.key === ' ') && canOpenModal) {
+                                    e.preventDefault();
+                                    handleOpenPerfModal();
+                                }
+                            }}
+                            className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden transition-all ${canOpenModal ? 'cursor-pointer' : 'cursor-default'} group flex flex-col justify-between liquid-glass-card liquid-glass-interactive ${hoverBorder}`}
+                            title={canOpenModal ? (isEn ? 'Click to view ticket breakdown' : 'Klik untuk melihat rincian tiket') : undefined}
+                        >
+                            <div>
+                                <div className="flex items-center justify-between gap-1.5">
+                                    <span className={`text-xs font-semibold shrink-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                        {isEn ? 'Speed & Team' : 'Performa & Tim'}
+                                    </span>
+                                    <select
+                                        value={perfMode}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onChange={(e) => {
+                                            e.stopPropagation();
+                                            const nextMode = e.target.value;
+                                            setPerfMode(nextMode);
+                                            if (nextMode === 'mttr') setChart4Mode('mttr_dept');
+                                            if (nextMode === 'top_resolver') setChart4Mode('top_workers');
+                                        }}
+                                        className={`text-[10px] font-bold rounded-lg px-2 py-0.5 border cursor-pointer transition-colors focus:ring-1 focus:ring-sky-500 max-w-[135px] truncate ${
+                                            isDark ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-slate-100 border-slate-300 text-slate-800'
+                                        }`}
+                                        title={isEn ? 'Switch metric: MTTR, Top Technician, or Oldest Active' : 'Pilih metrik: Rata-rata Selesai (MTTR), Teknisi Teraktif, atau Isu Terlama'}
+                                    >
+                                        <option value="mttr">{isEn ? '⏱️ Avg. Speed (MTTR)' : '⏱️ Rata-rata (MTTR)'}</option>
+                                        <option value="top_resolver">{isEn ? '👷 Top Technician' : '👷 Teknisi Teraktif'}</option>
+                                        <option value="oldest_active">{isEn ? '🚨 Oldest Active' : '🚨 Isu Terlama'}</option>
+                                    </select>
+                                </div>
+                                <div className="mt-2">
+                                    <span
+                                        title={headline}
+                                        className={`text-sm sm:text-base font-bold line-clamp-1 leading-snug block ${canOpenModal ? 'group-hover:underline' : ''} ${accentText}`}
+                                    >
+                                        {headline}
+                                    </span>
+                                    <div className="mt-1 flex items-baseline gap-2 flex-wrap">
+                                        <span className={`text-xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                            {bigValue}
+                                        </span>
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badgeStyle}`}>
+                                            {badgeText}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <p className={`text-[11px] mt-2 truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`} title={subInfo}>
+                                {subInfo}
+                            </p>
+                        </div>
+                    );
+                })()}
             </div>
 
             {stats.withEtaCount > 0 && (
@@ -1818,8 +2092,8 @@ export function LeanAnalyticsView({
                         </h3>
                         <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                             {isEn
-                                ? 'Visual intelligence for monthly issue trends, SLA target compliance, department workloads, and facility hotspots'
-                                : 'Visualisasi tren isu bulanan, kepatuhan target SLA, beban kerja departemen, dan titik kritis fasilitas'}
+                                ? 'Visual intelligence for monthly issue trends, SLA target compliance, department workloads, and resolution speed (MTTR)'
+                                : 'Visualisasi tren isu bulanan, kepatuhan target SLA, beban kerja departemen, serta kecepatan penyelesaian (MTTR) & performa tim'}
                         </p>
                     </div>
                 </div>
@@ -2243,80 +2517,226 @@ export function LeanAnalyticsView({
                         )}
                     </div>
 
-                    {/* CHART 4: Top Hotspot Locations (Horizontal Ranked Bar) */}
+                    {/* CHART 4: Resolution Speed (MTTR per Dept) / Top Active Technicians */}
                     <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm transition-all liquid-glass-card min-w-0 flex flex-col justify-between ${
                         isDark ? 'border-slate-700/80 bg-slate-900/40' : 'border-slate-200 bg-white/70'
                     }`}>
-                        <div className="flex items-center justify-between pb-3 border-b border-slate-700/20 mb-3">
+                        <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-700/20 mb-3 flex-wrap">
                             <div className="flex items-center gap-2">
-                                <MapPin className="w-4 h-4 text-indigo-400" />
+                                {chart4Mode === 'mttr_dept' ? (
+                                    <Clock className="w-4 h-4 text-sky-400" />
+                                ) : (
+                                    <Wrench className="w-4 h-4 text-emerald-400" />
+                                )}
                                 <h4 className={`text-xs sm:text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                    {isEn ? 'Top Incident Locations' : 'Hotspot Lokasi Insiden Terbanyak'}
+                                    {chart4Mode === 'mttr_dept'
+                                        ? (isEn ? 'Avg. Resolution Speed (MTTR) by Dept' : 'Kecepatan Penyelesaian (MTTR) per Dept')
+                                        : (isEn ? 'Top Active Technicians / Staff' : 'Top 6 Teknisi / Staf Teraktif')}
                                 </h4>
                             </div>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
-                                isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'
+                            <div className={`inline-flex items-center p-0.5 rounded-lg border text-[10px] font-bold ${
+                                isDark ? 'bg-slate-900/80 border-slate-700' : 'bg-slate-100 border-slate-200'
                             }`}>
-                                {isEn ? 'Top 6 Facilities' : 'Top 6 Fasilitas'}
-                            </span>
-                        </div>
-                        <div className="w-full h-[240px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart
-                                    layout="vertical"
-                                    data={hotspotChartData}
-                                    margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                                <button
+                                    type="button"
+                                    onClick={() => setChart4Mode('mttr_dept')}
+                                    className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
+                                        chart4Mode === 'mttr_dept'
+                                            ? 'bg-sky-600 text-white shadow-xs keep-white'
+                                            : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                                    }`}
                                 >
-                                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} opacity={0.6} horizontal={false} />
-                                    <XAxis
-                                        type="number"
-                                        allowDecimals={false}
-                                        tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}
-                                        axisLine={{ stroke: isDark ? '#334155' : '#cbd5e1' }}
-                                        tickLine={false}
-                                    />
-                                    <YAxis
-                                        type="category"
-                                        dataKey="shortName"
-                                        width={110}
-                                        tick={{ fill: isDark ? '#e2e8f0' : '#334155', fontSize: 10 }}
-                                        axisLine={{ stroke: isDark ? '#334155' : '#cbd5e1' }}
-                                        tickLine={false}
-                                    />
-                                    <RechartsTooltip
-                                        formatter={(value, name, item) => [
-                                            `${value} ${isEn ? 'incidents' : 'insiden'}`,
-                                            item?.payload?.location || name
-                                        ]}
-                                        contentStyle={{
-                                            backgroundColor: isDark ? '#0f172a' : '#ffffff',
-                                            borderColor: isDark ? '#334155' : '#e2e8f0',
-                                            borderRadius: '0.75rem',
-                                            fontSize: '11px',
-                                            color: isDark ? '#f8fafc' : '#0f172a',
-                                        }}
-                                        itemStyle={{ color: isDark ? '#f8fafc' : '#0f172a' }}
-                                    />
-                                    <Bar
-                                        dataKey="total"
-                                        name={isEn ? 'Total Incidents' : 'Total Insiden'}
-                                        fill="#6366f1"
-                                        radius={[0, 4, 4, 0]}
-                                        barSize={16}
-                                    >
-                                        <LabelList dataKey="total" position="right" fill={isDark ? '#e2e8f0' : '#334155'} fontSize={10} fontWeight={600} />
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
+                                    {isEn ? 'MTTR Dept' : 'MTTR Dept'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setChart4Mode('top_workers')}
+                                    className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
+                                        chart4Mode === 'top_workers'
+                                            ? 'bg-emerald-600 text-white shadow-xs keep-white'
+                                            : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                                    }`}
+                                >
+                                    {isEn ? 'Top Staff' : 'Top Teknisi'}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="w-full h-[240px]">
+                            {chart4Mode === 'mttr_dept' ? (
+                                mttrChartData.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            layout="vertical"
+                                            data={mttrChartData}
+                                            margin={{ top: 5, right: 42, left: 10, bottom: 5 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} opacity={0.6} horizontal={false} />
+                                            <XAxis
+                                                type="number"
+                                                unit={isEn ? 'h' : 'j'}
+                                                tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}
+                                                axisLine={{ stroke: isDark ? '#334155' : '#cbd5e1' }}
+                                                tickLine={false}
+                                            />
+                                            <YAxis
+                                                type="category"
+                                                dataKey="shortName"
+                                                width={110}
+                                                tick={{ fill: isDark ? '#e2e8f0' : '#334155', fontSize: 10 }}
+                                                axisLine={{ stroke: isDark ? '#334155' : '#cbd5e1' }}
+                                                tickLine={false}
+                                            />
+                                            <RechartsTooltip content={<CustomMttrTooltip />} />
+                                            <Bar
+                                                dataKey="avgHours"
+                                                name={isEn ? 'Avg. Hours' : 'Rata-rata Jam'}
+                                                radius={[0, 4, 4, 0]}
+                                                barSize={16}
+                                                className="cursor-pointer"
+                                                onClick={(entry) => {
+                                                    if (!entry || !entry.issues) return;
+                                                    setSelectedPerfModal({
+                                                        title: `${isEn ? 'Resolved Tickets:' : 'Tiket Selesai:'} ${entry.department}`,
+                                                        subtitle: `${isEn ? 'Avg. MTTR' : 'Rata-rata MTTR'}: ${formatDurationCompact(entry.avgMinutes, isEn)} (${entry.solvedCount} ${isEn ? 'tickets' : 'tiket'})`,
+                                                        accent: 'sky',
+                                                        items: entry.issues.map((iss) => {
+                                                            const cMs = iss.created_at ? new Date(iss.created_at).getTime() : NaN;
+                                                            const rawR = iss.resolved_at || iss.solved_at || iss.updated_at;
+                                                            const rMs = rawR ? new Date(rawR).getTime() : NaN;
+                                                            const mins = !Number.isNaN(cMs) && !Number.isNaN(rMs) && rMs >= cMs ? (rMs - cMs) / 60000 : null;
+                                                            return {
+                                                                issue: iss,
+                                                                durationLabel: mins !== null ? formatDurationCompact(mins, isEn) : null,
+                                                            };
+                                                        }),
+                                                    });
+                                                }}
+                                            >
+                                                {mttrChartData.map((entry, idx) => (
+                                                    <Cell
+                                                        key={`mttr-cell-${idx}`}
+                                                        fill={
+                                                            entry.statusType === 'fast'
+                                                                ? '#10b981'
+                                                                : entry.statusType === 'pending_delay'
+                                                                ? '#f59e0b'
+                                                                : entry.statusType === 'slow'
+                                                                ? '#f43f5e'
+                                                                : '#0ea5e9'
+                                                        }
+                                                    />
+                                                ))}
+                                                <LabelList
+                                                    dataKey="avgHours"
+                                                    position="right"
+                                                    formatter={(v) => `${v}${isEn ? 'h' : 'j'}`}
+                                                    fill={isDark ? '#e2e8f0' : '#334155'}
+                                                    fontSize={10}
+                                                    fontWeight={600}
+                                                />
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                ) : (
+                                    <div className="h-full flex flex-col items-center justify-center text-center px-4">
+                                        <Clock className={`w-8 h-8 mb-2 ${isDark ? 'text-slate-600' : 'text-slate-300'}`} />
+                                        <p className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                            {isEn ? 'No resolved ticket timing data for this period' : 'Belum ada data durasi tiket selesai pada periode ini'}
+                                        </p>
+                                    </div>
+                                )
+                            ) : (
+                                topWorkersChartData.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            layout="vertical"
+                                            data={topWorkersChartData}
+                                            margin={{ top: 5, right: 36, left: 10, bottom: 5 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} opacity={0.6} horizontal={false} />
+                                            <XAxis
+                                                type="number"
+                                                allowDecimals={false}
+                                                tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}
+                                                axisLine={{ stroke: isDark ? '#334155' : '#cbd5e1' }}
+                                                tickLine={false}
+                                            />
+                                            <YAxis
+                                                type="category"
+                                                dataKey="shortName"
+                                                width={110}
+                                                tick={{ fill: isDark ? '#e2e8f0' : '#334155', fontSize: 10 }}
+                                                axisLine={{ stroke: isDark ? '#334155' : '#cbd5e1' }}
+                                                tickLine={false}
+                                            />
+                                            <RechartsTooltip
+                                                formatter={(value, _name, item) => {
+                                                    const avgStr = item?.payload?.avgMinutes !== null && item?.payload?.avgMinutes !== undefined
+                                                        ? ` • Avg ${formatDurationCompact(item.payload.avgMinutes, isEn)}`
+                                                        : '';
+                                                    return [
+                                                        `${value} ${isEn ? 'resolved' : 'selesai'}${avgStr}`,
+                                                        item?.payload?.name || (isEn ? 'Technician' : 'Teknisi'),
+                                                    ];
+                                                }}
+                                                contentStyle={{
+                                                    backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                                                    borderColor: isDark ? '#334155' : '#e2e8f0',
+                                                    borderRadius: '0.75rem',
+                                                    fontSize: '11px',
+                                                    color: isDark ? '#f8fafc' : '#0f172a',
+                                                }}
+                                                itemStyle={{ color: isDark ? '#f8fafc' : '#0f172a' }}
+                                            />
+                                            <Bar
+                                                dataKey="resolvedCount"
+                                                name={isEn ? 'Tickets Resolved' : 'Tiket Selesai'}
+                                                fill="#10b981"
+                                                radius={[0, 4, 4, 0]}
+                                                barSize={16}
+                                                className="cursor-pointer"
+                                                onClick={(entry) => {
+                                                    if (!entry || !entry.issues) return;
+                                                    setSelectedPerfModal({
+                                                        title: isEn ? `Resolved by ${entry.name}` : `Tiket Diselesaikan: ${entry.name}`,
+                                                        subtitle: `${entry.resolvedCount} ${isEn ? 'tickets resolved' : 'tiket selesai'}${entry.avgMinutes !== null ? ` • Avg ${formatDurationCompact(entry.avgMinutes, isEn)}` : ''}`,
+                                                        accent: 'emerald',
+                                                        items: entry.issues.map((iss) => {
+                                                            const cMs = iss.created_at ? new Date(iss.created_at).getTime() : NaN;
+                                                            const rawR = iss.resolved_at || iss.solved_at || iss.updated_at;
+                                                            const rMs = rawR ? new Date(rawR).getTime() : NaN;
+                                                            const mins = !Number.isNaN(cMs) && !Number.isNaN(rMs) && rMs >= cMs ? (rMs - cMs) / 60000 : null;
+                                                            return {
+                                                                issue: iss,
+                                                                durationLabel: mins !== null ? formatDurationCompact(mins, isEn) : null,
+                                                            };
+                                                        }),
+                                                    });
+                                                }}
+                                            >
+                                                <LabelList dataKey="resolvedCount" position="right" fill={isDark ? '#e2e8f0' : '#334155'} fontSize={10} fontWeight={600} />
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                ) : (
+                                    <div className="h-full flex flex-col items-center justify-center text-center px-4">
+                                        <Wrench className={`w-8 h-8 mb-2 ${isDark ? 'text-slate-600' : 'text-slate-300'}`} />
+                                        <p className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                            {isEn ? 'No technician resolution records in this period' : 'Belum ada catatan penyelesaian teknisi pada periode ini'}
+                                        </p>
+                                    </div>
+                                )
+                            )}
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* ========================================================= */}
-            {/* 6. MODAL DETAIL POPUP KETIKA LOKASI DI-KLIK               */}
+            {/* 6. MODAL DETAIL POPUP PERFORMA / MTTR / TOP TEKNISI       */}
             {/* ========================================================= */}
-            {selectedLocationForModal && (
+            {selectedPerfModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className={`w-full max-w-2xl max-h-[85vh] rounded-2xl border flex flex-col overflow-hidden shadow-2xl liquid-glass-modal ${
                         isDark ? 'liquid-glass-dark text-white' : 'liquid-glass-light text-slate-900'
@@ -2326,23 +2746,33 @@ export function LeanAnalyticsView({
                             isDark ? 'liquid-glass-dark border-white/10' : 'liquid-glass-light border-slate-200/70'
                         }`}>
                             <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
-                                    <MapPin className="w-4 h-4" />
+                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                                    selectedPerfModal.accent === 'emerald'
+                                        ? 'bg-emerald-500/20 text-emerald-400'
+                                        : selectedPerfModal.accent === 'rose'
+                                        ? 'bg-rose-500/20 text-rose-400'
+                                        : 'bg-sky-500/20 text-sky-400'
+                                }`}>
+                                    {selectedPerfModal.accent === 'emerald' ? (
+                                        <Wrench className="w-4 h-4" />
+                                    ) : selectedPerfModal.accent === 'rose' ? (
+                                        <AlertTriangle className="w-4 h-4" />
+                                    ) : (
+                                        <Clock className="w-4 h-4" />
+                                    )}
                                 </div>
                                 <div>
                                     <h3 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                        {isEn ? 'Issue List:' : 'Daftar Isu:'} {selectedLocationForModal.location}
+                                        {selectedPerfModal.title}
                                     </h3>
                                     <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                        {isEn
-                                            ? `Total ${selectedLocationForModal.total} incidents (${selectedLocationForModal.openCount} unresolved)`
-                                            : `Total ${selectedLocationForModal.total} insiden (${selectedLocationForModal.openCount} belum selesai)`}
+                                        {selectedPerfModal.subtitle}
                                     </p>
                                 </div>
                             </div>
                             <button
                                 type="button"
-                                onClick={() => setSelectedLocationForModal(null)}
+                                onClick={() => setSelectedPerfModal(null)}
                                 className={`p-1.5 rounded-lg transition-colors ${
                                     isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
                                 }`}
@@ -2353,7 +2783,7 @@ export function LeanAnalyticsView({
 
                         {/* Modal Body */}
                         <div className="p-4 overflow-y-auto space-y-3 flex-1">
-                            {selectedLocationForModal.issues.map((iss) => (
+                            {selectedPerfModal.items.map(({ issue: iss, durationLabel }) => (
                                 <div
                                     key={iss.id}
                                     className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${
@@ -2378,6 +2808,16 @@ export function LeanAnalyticsView({
                                             }`}>
                                                 {getStatusLabel(iss.status)}
                                             </span>
+                                            {durationLabel && (
+                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border inline-flex items-center gap-1 ${
+                                                    selectedPerfModal.accent === 'rose'
+                                                        ? (isDark ? 'bg-rose-950/75 border-rose-600/50 text-rose-300' : 'bg-rose-50 border-rose-300 text-rose-700')
+                                                        : (isDark ? 'bg-sky-950/75 border-sky-600/50 text-sky-300' : 'bg-sky-50 border-sky-300 text-sky-700')
+                                                }`}>
+                                                    <Clock className="w-2.5 h-2.5 shrink-0" />
+                                                    <span>{durationLabel}</span>
+                                                </span>
+                                            )}
                                             <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                                 Dept: {(iss.target_departments || []).map(formatDeptDisplay).join(', ') || (isEn ? 'General' : 'Umum')}
                                             </span>
@@ -2419,10 +2859,10 @@ export function LeanAnalyticsView({
                                         <button
                                             type="button"
                                             onClick={() => {
-                                                setSelectedLocationForModal(null);
+                                                setSelectedPerfModal(null);
                                                 onSelectIssue(iss);
                                             }}
-                                            className="shrink-0 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition-all flex items-center gap-1 self-end sm:self-center"
+                                            className="shrink-0 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition-all flex items-center gap-1 self-end sm:self-center cursor-pointer"
                                         >
                                             <span>{isEn ? 'Details' : 'Rincian'}</span>
                                             <ArrowUpRight className="w-3.5 h-3.5" />
@@ -2854,7 +3294,7 @@ export function LeanAnalyticsView({
                 timeLabel={timeLabels[timeRange] || timeRange}
                 stats={stats}
                 deptTargetData={deptMetrics.targetList}
-                hotspotList={hotspotList}
+                hotspotList={[]}
             />
         </div>
     );
