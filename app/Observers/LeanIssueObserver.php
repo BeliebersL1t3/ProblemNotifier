@@ -60,11 +60,11 @@ class LeanIssueObserver
     }
 
     /**
-     * Dispatch sync non-blocking after HTTP response is returned to user.
+     * Run sync non-blocking during application termination (avoids closure serialization overhead/errors).
      */
     protected function dispatchSync(int $issueId, bool $isDeleted, ?string $deletedBy): void
     {
-        dispatch(function () use ($issueId, $isDeleted, $deletedBy) {
+        app()->terminating(static function () use ($issueId, $isDeleted, $deletedBy) {
             try {
                 $target = LeanIssue::withTrashed()->find($issueId);
                 if ($target) {
@@ -73,6 +73,6 @@ class LeanIssueObserver
             } catch (\Throwable $e) {
                 Log::warning("LeanIssueObserver: Auto-sync to Google Sheets failed for issue #{$issueId}: " . $e->getMessage());
             }
-        })->afterResponse();
+        });
     }
 }

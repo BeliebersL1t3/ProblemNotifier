@@ -21,12 +21,24 @@ export function EmployeeSheetSyncModal({ isOpen, onClose, onSyncSuccess }) {
     const [exporting, setExporting] = useState(false);
     const [result, setResult] = useState(null);
     const [errorMessage, setErrorMessage] = useState(null);
+    const [errorDetails, setErrorDetails] = useState([]);
+
+    const extractErrorDetails = (rawErrors) => {
+        if (Array.isArray(rawErrors)) {
+            return rawErrors.filter(Boolean).map(String);
+        }
+        if (rawErrors && typeof rawErrors === 'object') {
+            return Object.values(rawErrors).flat().filter(Boolean).map(String);
+        }
+        return [];
+    };
 
     // Fetch existing employee spreadsheet config
     useEffect(() => {
         if (!isOpen) return;
         setResult(null);
         setErrorMessage(null);
+        setErrorDetails([]);
         setLoadingConfig(true);
         axios.get('/users/employee-sheet-config')
             .then((res) => {
@@ -54,6 +66,7 @@ export function EmployeeSheetSyncModal({ isOpen, onClose, onSyncSuccess }) {
 
         setSavingConfig(true);
         setErrorMessage(null);
+        setErrorDetails([]);
         try {
             const res = await axios.post('/users/employee-sheet-config', { url: trimmed });
             if (res.data?.success) {
@@ -62,9 +75,11 @@ export function EmployeeSheetSyncModal({ isOpen, onClose, onSyncSuccess }) {
                 setUrlInput(res.data.spreadsheet_url);
             } else {
                 setErrorMessage(res.data?.message || 'Gagal menyimpan URL spreadsheet.');
+                setErrorDetails(extractErrorDetails(res.data?.errors));
             }
         } catch (err) {
             setErrorMessage(err.response?.data?.message || err.message || 'Gagal menyimpan URL spreadsheet.');
+            setErrorDetails(extractErrorDetails(err.response?.data?.errors));
         } finally {
             setSavingConfig(false);
         }
@@ -73,6 +88,7 @@ export function EmployeeSheetSyncModal({ isOpen, onClose, onSyncSuccess }) {
     const handleStartSync = async () => {
         setSyncing(true);
         setErrorMessage(null);
+        setErrorDetails([]);
         setResult(null);
 
         try {
@@ -92,9 +108,11 @@ export function EmployeeSheetSyncModal({ isOpen, onClose, onSyncSuccess }) {
                 }
             } else {
                 setErrorMessage(res.data?.message || (isEn ? 'Sync failed.' : 'Gagal menyinkronkan data.'));
+                setErrorDetails(extractErrorDetails(res.data?.errors));
             }
         } catch (err) {
             setErrorMessage(err.response?.data?.message || err.message || (isEn ? 'Sync error occurred.' : 'Terjadi kesalahan sistem saat sinkronisasi.'));
+            setErrorDetails(extractErrorDetails(err.response?.data?.errors));
         } finally {
             setSyncing(false);
         }
@@ -108,6 +126,7 @@ export function EmployeeSheetSyncModal({ isOpen, onClose, onSyncSuccess }) {
 
         setExporting(true);
         setErrorMessage(null);
+        setErrorDetails([]);
         setResult(null);
 
         try {
@@ -127,9 +146,11 @@ export function EmployeeSheetSyncModal({ isOpen, onClose, onSyncSuccess }) {
                 });
             } else {
                 setErrorMessage(res.data?.message || 'Gagal meletakkan data karyawan.');
+                setErrorDetails(extractErrorDetails(res.data?.errors));
             }
         } catch (err) {
             setErrorMessage(err.response?.data?.message || err.message || 'Gagal meletakkan data ke spreadsheet.');
+            setErrorDetails(extractErrorDetails(err.response?.data?.errors));
         } finally {
             setExporting(false);
         }
@@ -174,9 +195,31 @@ export function EmployeeSheetSyncModal({ isOpen, onClose, onSyncSuccess }) {
                 <div className="p-5 overflow-y-auto space-y-4 text-xs">
                     {/* Error Notice */}
                     {errorMessage && (
-                        <div className="p-3 rounded-xl border border-rose-500/40 bg-rose-500/10 text-rose-300 flex items-start gap-2.5">
+                        <div className={`p-3 rounded-xl border border-rose-500/40 bg-rose-500/10 flex items-start gap-2.5 ${
+                            isDark ? 'text-rose-300' : 'text-rose-700'
+                        }`}>
                             <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                            <div className="flex-1 font-medium">{errorMessage}</div>
+                            <div className="flex-1 space-y-1.5">
+                                <div className="font-semibold">{errorMessage}</div>
+                                {errorDetails.length > 0 && (
+                                    <div className={`p-2 rounded-lg border text-[11px] space-y-1 ${
+                                        isDark
+                                            ? 'bg-rose-950/50 border-rose-800/50 text-rose-200'
+                                            : 'bg-rose-50 border-rose-200 text-rose-800'
+                                    }`}>
+                                        <div className="font-bold">
+                                            {isEn
+                                                ? `Row error details (${errorDetails.length}):`
+                                                : `Detail galat per baris (${errorDetails.length}):`}
+                                        </div>
+                                        <ul className="list-disc pl-4 space-y-0.5 max-h-40 overflow-y-auto">
+                                            {errorDetails.map((detail, idx) => (
+                                                <li key={idx}>{detail}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
 
@@ -304,12 +347,20 @@ export function EmployeeSheetSyncModal({ isOpen, onClose, onSyncSuccess }) {
                                 </div>
                             </div>
                             {result.errors && result.errors.length > 0 && (
-                                <div className="p-2 rounded-lg bg-rose-950/40 border border-rose-800/40 text-rose-300 text-[11px] space-y-1">
+                                <div className={`p-2.5 rounded-lg border text-[11px] space-y-1 ${
+                                    isDark
+                                        ? 'bg-rose-950/40 border-rose-800/40 text-rose-300'
+                                        : 'bg-rose-50 border-rose-200 text-rose-800'
+                                }`}>
                                     <div className="font-bold flex items-center gap-1">
                                         <AlertTriangle className="w-3.5 h-3.5" />
-                                        <span>{isEn ? 'Warnings / Errors details:' : 'Catatan galat:'}</span>
+                                        <span>
+                                            {isEn
+                                                ? `Warnings / Errors details (${result.errors.length}):`
+                                                : `Detail galat per baris (${result.errors.length}):`}
+                                        </span>
                                     </div>
-                                    <ul className="list-disc pl-4 space-y-0.5">
+                                    <ul className="list-disc pl-4 space-y-0.5 max-h-40 overflow-y-auto">
                                         {result.errors.map((err, i) => (
                                             <li key={i}>{err}</li>
                                         ))}
