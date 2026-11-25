@@ -5575,17 +5575,9 @@ export default function LeanIndex({
                                 </p>
                                 <ul className="list-disc list-inside space-y-0.5 text-[11px] text-amber-200/80">
                                     {isEn ? (
-                                        <>
-                                            <li>This ticket will be <strong>hidden from the dashboard &amp; charts</strong>.</li>
-                                            <li>Data in <strong>Google Spreadsheet is NOT DELETED</strong>, instead marked inactive (<strong>Active in Dashboard = 0</strong>).</li>
-                                            <li>Your name and deletion time will be automatically audited.</li>
-                                        </>
+                                        <li>Your name and deletion time will be automatically audited.</li>
                                     ) : (
-                                        <>
-                                            <li>Tiket ini akan <strong>disembunyikan dari dashboard &amp; grafik</strong>.</li>
-                                            <li>Data di <strong>Google Spreadsheet TIDAK DIHAPUS</strong>, melainkan ditandai non-aktif (<strong>Aktif di Dashboard = 0</strong>).</li>
-                                            <li>Nama dan waktu penghapusan akan diaudit secara otomatis.</li>
-                                        </>
+                                        <li>Nama dan waktu penghapusan akan diaudit secara otomatis.</li>
                                     )}
                                 </ul>
                             </div>
